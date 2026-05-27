@@ -14,18 +14,24 @@ use App\Models\StatusHistory;
 use App\Models\Applicant;
 use App\Models\LandRecord;
 use App\Models\User;
+use App\Notifications\NewApplicationNotification;
+use Illuminate\Support\Facades\Notification;
 
 class ApplicationController extends Controller
 {
     /**
      * Display a listing of the resource.
+     * Records Officers see the Intake Workstation, others see the standard table.
      */
     public function index()
     {
-        // We use "with()" to grab the Applicant and Land Record at the same time!
-        // "latest()" puts the newest applications at the top of the list.
-        $applications = Application::with(['applicant', 'landRecord'])->latest()->get();
+        // Records Officers get the Intake Workstation
+        if (Auth::user()->role === 'records_officer') {
+            return $this->workstation();
+        }
 
+        // Others get the standard applications table
+        $applications = Application::with(['applicant', 'landRecord'])->latest()->get();
         return view('applications.index', compact('applications'));
     }
 
@@ -35,6 +41,14 @@ class ApplicationController extends Controller
     public function create()
     {
         return view('applications.create');
+    }
+
+    /**
+     * Show the Master Intake form for creating applicant, land record, and application
+     */
+    public function masterCreate()
+    {
+        return view('applications.master-create');
     }
 
     /**
@@ -68,6 +82,11 @@ class ApplicationController extends Controller
      */
     public function masterStore(Request $request)
     {
+        // AUTHORIZATION: Only Records Officers can create applications
+        if (Auth::user()->role !== 'records_officer') {
+            abort(403, 'Unauthorized: Only Records Officers can create applications.');
+        }
+
         // 1. Validate EVERYTHING from the single form
         $validated = $request->validate([
             // Applicant Data
@@ -76,7 +95,7 @@ class ApplicationController extends Controller
             'contact_no' => 'nullable|string',
             
             // Land Data
-            'survey_no' => ['required', 'string', 'unique:land_records,survey_no', 'regex:/^[A-Za-z]{3}-\d{2}-\d{6}$/'],
+            'survey_no' => ['required', 'string', 'unique:land_records,survey_no', 'regex:/^[A-Za-z]{3}-\d{2,}-\d{4,}$/'],
             'total_area' => 'required|numeric|min:1',
             'location' => 'required|string',
             
@@ -86,7 +105,8 @@ class ApplicationController extends Controller
         ]);
 
         // 2. Use a Database Transaction (Save all or save nothing!)
-        DB::transaction(function () use ($validated) {
+        $application = null;
+        DB::transaction(function () use ($validated, &$application) {
             
             // A. Save the Applicant
             $applicant = Applicant::create([
@@ -119,6 +139,23 @@ class ApplicationController extends Controller
             ]);
         });
 
+        // 3. Send notifications to all Land Management Officers
+        if ($application) {
+            $landOfficers = User::whereIn('role', ['processing', 'land_officer'])->get();
+            if ($landOfficers->isNotEmpty()) {
+                Notification::send($landOfficers, new NewApplicationNotification($application));
+            }
+        }
+
+        // Return JSON response for AJAX requests, redirect for normal requests
+        if ($request->wantsJson() || $request->header('Accept') === 'application/json') {
+            return response()->json([
+                'success' => true,
+                'message' => 'Master Intake Complete: Applicant, Land, and Application successfully linked and saved!',
+                'application' => $application
+            ], 201);
+        }
+
         return back()->with('success', 'Master Intake Complete: Applicant, Land, and Application successfully linked and saved!');
     }
 
@@ -133,50 +170,151 @@ class ApplicationController extends Controller
 
     /**
      * Show the form for editing the specified resource.
+     * Only Land Officers can edit/assess applications.
      */
     public function edit(string $id)
     {
-        //
+        // AUTHORIZATION: Only Land Officers can edit applications
+        if (Auth::user()->role !== 'land_officer') {
+            abort(403, 'Unauthorized: Only Land Management Officers can assess applications.');
+        }
+
+        $application = Application::with(['applicant', 'landRecord', 'statusHistories'])->findOrFail($id);
+        return view('applications.edit', compact('application'));
     }
 
     /**
      * Update the specified resource in storage.
+     * Land Officers assess the application and make final decisions.
      */
     public function update(Request $request, Application $application)
     {
+        // AUTHORIZATION: Only Land Officers can update applications
+        if (Auth::user()->role !== 'land_officer') {
+            abort(403, 'Unauthorized: Only Land Management Officers can update applications.');
+        }
+
+        // Log the start of the assessment
+        \Log::info('🔧 LAND OFFICER ASSESSMENT STARTED', [
+            'application_id' => $application->id,
+            'tracking_no' => $application->tracking_no,
+            'land_officer_id' => Auth::id(),
+            'land_officer_name' => Auth::user()->name,
+            'timestamp' => now()
+        ]);
+
         // 1. VALIDATE
         $validated = $request->validate([
-            'status' => 'required|in:Pending,In Process,Approved,Rejected',
-            'remarks' => 'nullable|string',
-            'patent_details' => 'nullable|string', // Nullable here, but database handles default
+            'lot_type' => 'required|in:existing_lot,subdivision',
+            'new_lot_number' => 'nullable|required_if:lot_type,subdivision|string|max:255',
+            'subdivided_area' => 'nullable|required_if:lot_type,subdivision|numeric|min:0.01',
+            'status' => 'required|in:In Process,Approved,Rejected',
+            'land_officer_remarks' => 'required|string',
+            'patent_details' => 'nullable|string',
             'patent_type' => 'nullable|string',
         ]);
 
-        // 2. HANDLE MENTOR'S PATENT RULE
-        $updateData = [];
-        if ($validated['status'] === 'Approved') {
-            // If they typed something, use it. Otherwise, let it be null so DB defaults to 'Patent'
-            $updateData['patent_details'] = $request->filled('patent_details') ? $validated['patent_details'] : null;
-            $updateData['patent_type'] = $validated['patent_type'] ?? null;
+        \Log::info('✓ VALIDATION PASSED', [
+            'lot_type' => $validated['lot_type'],
+            'status' => $validated['status'],
+            'remarks_length' => strlen($validated['land_officer_remarks'])
+        ]);
+
+        // 2. HANDLE SUBDIVISION LOGIC
+        $updateData = [
+            'lot_type' => $validated['lot_type'],
+            'land_officer_remarks' => $validated['land_officer_remarks'],
+            'land_officer_id' => Auth::id(),
+            'assessed_at' => now(),
+            'patent_details' => $validated['patent_details'] ?? null,
+            'patent_type' => $validated['patent_type'] ?? null,
+        ];
+
+        // If it's a subdivision, calculate remaining area
+        if ($validated['lot_type'] === 'subdivision') {
+            $updateData['new_lot_number'] = $validated['new_lot_number'];
+            $updateData['subdivided_area'] = $validated['subdivided_area'];
+            // Calculate remaining area of mother lot
+            $updateData['remaining_area'] = $application->landRecord->total_area - $validated['subdivided_area'];
+
+            \Log::info('🔨 SUBDIVISION DETAILS PROCESSED', [
+                'new_lot_number' => $validated['new_lot_number'],
+                'subdivided_area' => $validated['subdivided_area'],
+                'total_area' => $application->landRecord->total_area,
+                'remaining_area' => $updateData['remaining_area']
+            ]);
+        } else {
+            // For existing lots, no subdivision fields needed
+            $updateData['new_lot_number'] = null;
+            $updateData['subdivided_area'] = null;
+            $updateData['remaining_area'] = null;
+
+            \Log::info('✓ EXISTING LOT - No subdivision fields required');
         }
 
-        // Update the application record
+        // 3. UPDATE THE APPLICATION
         $application->update($updateData);
+        \Log::info('✓ APPLICATION DATA UPDATED', [
+            'lot_type' => $updateData['lot_type'],
+            'assessed_by' => Auth::user()->name
+        ]);
 
-        // 3. HANDLE THE AUDIT TRAIL (STATUS HISTORY)
-        // Check if the status actually changed from what was previously recorded
-        $latestStatus = $application->statusHistories()->latest()->first();
+        // 4. CREATE AUDIT TRAIL (STATUS HISTORY)
+        $statusHistory = StatusHistory::create([
+            'application_id' => $application->id,
+            'status' => $validated['status'],
+            'remarks' => $validated['land_officer_remarks'],
+            'updated_by' => Auth::user()->name ?? 'System User',
+        ]);
 
-        if (!$latestStatus || $latestStatus->status !== $validated['status']) {
-            StatusHistory::create([
+        \Log::info('✓ AUDIT TRAIL CREATED', [
+            'status_history_id' => $statusHistory->id,
+            'application_id' => $application->id,
+            'new_status' => $validated['status']
+        ]);
+
+        // 5. MARK RELATED NOTIFICATIONS AS READ & UPDATE NOTIFICATION DATA
+        // When status is updated, mark any pending notifications for this application as read
+        // AND update the notification data with the new status for real-time sync
+        $relatedNotifications = Auth::user()->notifications()
+            ->where('data->application_id', '=', $application->id)
+            ->whereNull('read_at')
+            ->get();
+        
+        foreach ($relatedNotifications as $notification) {
+            // Update notification data with new status
+            $data = $notification->data;
+            $data['status'] = $validated['status'];
+            $notification->data = $data;
+            $notification->read_at = now();
+            $notification->save();
+        }
+
+        \Log::info('✓ NOTIFICATIONS MARKED AS READ & SYNCED', [
+            'application_id' => $application->id,
+            'marked_by' => Auth::user()->name,
+            'count' => count($relatedNotifications),
+            'new_status' => $validated['status']
+        ]);
+
+        \Log::info('✅ LAND OFFICER ASSESSMENT COMPLETED SUCCESSFULLY', [
+            'application_id' => $application->id,
+            'tracking_no' => $application->tracking_no,
+            'final_status' => $validated['status'],
+            'timestamp' => now()
+        ]);
+
+        // Check if this is an AJAX request
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Application assessment completed successfully!',
                 'application_id' => $application->id,
-                'status' => $validated['status'],
-                'remarks' => $validated['remarks'],
-                'updated_by' => Auth::user()?->name ?? 'System User',
+                'new_status' => $validated['status']
             ]);
         }
 
-        return redirect()->route('applications.show', $application->id)->with('success', 'Application updated!');
+        return redirect()->route('applications.show', $application->id)->with('success', 'Application assessment completed successfully!');
     }
 
     /**
@@ -192,6 +330,11 @@ class ApplicationController extends Controller
      */
     public function updateStatus(Request $request, $id)
     {
+        // AUTHORIZATION: Only 'processing' role users can update application status
+        if (Auth::user()->role !== 'processing') {
+            abort(403, 'Unauthorized: Only Land Management Officers can update application status.');
+        }
+
         $validated = $request->validate([
             'status' => 'required|in:Pending,In Process,Approved,Rejected',
             'remarks' => 'nullable|string'
@@ -206,6 +349,118 @@ class ApplicationController extends Controller
         ]);
 
         return back()->with('success', 'Application status successfully updated to ' . $validated['status'] . '!');
+    }
+
+    /**
+     * Quick approve an existing lot from notification modal
+     */
+    public function quickApprove(Request $request, Application $application)
+    {
+        // AUTHORIZATION: Only Land Officers can approve applications
+        if (Auth::user()->role !== 'land_officer') {
+            abort(403, 'Unauthorized: Only Land Officers can approve applications.');
+        }
+
+        // VALIDATION: Only existing lots can be quick approved
+        $validated = $request->validate([
+            'lot_type' => 'required|in:existing_lot',
+            'status' => 'required|in:Approved,Rejected',
+            'land_officer_remarks' => 'required|string'
+        ]);
+
+        \Log::info('🚀 QUICK APPROVE INITIATED', [
+            'application_id' => $application->id,
+            'tracking_no' => $application->tracking_no,
+            'lot_type' => $validated['lot_type'],
+            'status' => $validated['status'],
+            'land_officer' => Auth::user()->name
+        ]);
+
+        // Update application
+        $application->update([
+            'lot_type' => $validated['lot_type'],
+            'land_officer_remarks' => $validated['land_officer_remarks'],
+            'land_officer_id' => Auth::id(),
+            'assessed_at' => now()
+        ]);
+
+        // Create audit trail
+        StatusHistory::create([
+            'application_id' => $application->id,
+            'status' => $validated['status'],
+            'remarks' => $validated['land_officer_remarks'],
+            'updated_by' => Auth::user()->name ?? 'System User'
+        ]);
+
+        \Log::info('✅ QUICK APPROVE COMPLETED', [
+            'application_id' => $application->id,
+            'final_status' => $validated['status'],
+            'timestamp' => now()
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Application ' . strtolower($validated['status']) . ' successfully!',
+            'application_id' => $application->id,
+            'status' => $validated['status']
+        ]);
+    }
+
+    /**
+     * Get application details as JSON (for notifications modal)
+     */
+    public function getDetails(Application $application)
+    {
+        $application->load(['applicant', 'landRecord', 'statusHistories']);
+        
+        // Get latest status from status_histories
+        $latestStatus = $application->statusHistories()->latest()->first();
+        $status = $latestStatus?->status ?? 'Pending';
+
+        return response()->json([
+            'tracking_no' => $application->tracking_no,
+            'applicant_name' => $application->applicant?->full_name ?? 'N/A',
+            'location' => $application->landRecord?->location ?? 'N/A',
+            'survey_no' => $application->landRecord?->survey_no ?? 'N/A',
+            'status' => $status,
+            'remarks' => $application->land_officer_remarks ?? '',
+            'application_id' => $application->id,
+            'url' => route('applications.show', $application->id)
+        ]);
+    }
+
+    /**
+     * Get application details by tracking number as JSON (for notifications modal)
+     */
+    public function getDetailsByTracking($trackingNo)
+    {
+        $application = Application::where('tracking_no', $trackingNo)
+                                  ->with(['applicant', 'landRecord', 'statusHistories'])
+                                  ->firstOrFail();
+        
+        return $this->getDetailsResponse($application);
+    }
+
+    /**
+     * Helper method to return application details as JSON
+     */
+    private function getDetailsResponse(Application $application)
+    {
+        // Get latest status from status_histories
+        $latestStatus = $application->statusHistories()->latest()->first();
+        $status = $latestStatus?->status ?? 'Pending';
+
+        return response()->json([
+            'tracking_no' => $application->tracking_no,
+            'applicant_name' => $application->applicant?->full_name ?? 'N/A',
+            'location' => $application->landRecord?->location ?? 'N/A',
+            'survey_no' => $application->landRecord?->survey_no ?? 'N/A',
+            'status' => $status,
+            'remarks' => $application->land_officer_remarks ?? '',
+            'application_id' => $application->id,
+            'lot_type' => $application->lot_type ?? null,
+            'url' => route('applications.show', $application->id)
+        ]);
     }
 
     /**
@@ -337,5 +592,243 @@ for ($col = 1; $col <= count($headings); $col++) {
         $pdf = Pdf::loadHTML($html);
         
         return $pdf->download($fileName);
+    }
+
+    /**
+     * Get the next tracking number
+     */
+    public function getNextTrackingNumber()
+    {
+        // Get the last tracking number from database
+        $lastApp = Application::orderBy('created_at', 'desc')->first();
+        
+        if (!$lastApp) {
+            $nextNumber = 'CENRO-2026-001';
+        } else {
+            // Extract the numeric part and increment
+            preg_match('/(\d+)$/', $lastApp->tracking_no, $matches);
+            if ($matches) {
+                $lastNum = intval($matches[1]);
+                $nextNum = str_pad($lastNum + 1, 3, '0', STR_PAD_LEFT);
+                $nextNumber = 'CENRO-' . date('Y') . '-' . $nextNum;
+            } else {
+                $nextNumber = 'CENRO-' . date('Y') . '-001';
+            }
+        }
+
+        return response()->json(['tracking_no' => $nextNumber]);
+    }
+
+    /**
+     * Show the Intake Workstation view
+     */
+    public function workstation()
+    {
+        // Get all applications with related data
+        $applications = Application::with(['applicant', 'landRecord', 'statusHistories'])
+                                   ->latest()
+                                   ->get();
+
+        return view('applications.workstation', compact('applications'));
+    }
+
+    /**
+     * Get applications table data as HTML (for AJAX refresh)
+     */
+    public function getTableData()
+    {
+        // Get all applications with related data
+        $applications = Application::with(['applicant', 'landRecord', 'statusHistories'])
+                                   ->latest()
+                                   ->get();
+
+        // If no applications, return empty state
+        if ($applications->isEmpty()) {
+            $html = '
+                <tr>
+                    <td colspan="7" class="text-center py-5 text-muted">
+                        <i class="fas fa-inbox fa-3x mb-3 text-light"></i>
+                        <p class="mb-0">No applications yet. Use the form above to create one.</p>
+                    </td>
+                </tr>
+            ';
+            return response()->json(['html' => $html]);
+        }
+
+        // Build the table rows HTML
+        $html = '';
+        foreach ($applications as $app) {
+            $latestStatus = $app->statusHistories()->latest()->first();
+            $statusText = $latestStatus ? $latestStatus->status : 'Pending';
+            $statusClass = match($statusText) {
+                'Approved' => 'status-approved',
+                'Rejected' => 'status-rejected',
+                'In Process' => 'status-in-process',
+                default => 'status-pending',
+            };
+
+            $html .= '
+                <tr class="application-row">
+                    <td class="fw-bold">' . htmlspecialchars($app->tracking_no) . '</td>
+                    <td>' . htmlspecialchars($app->applicant->full_name) . '</td>
+                    <td>' . htmlspecialchars($app->landRecord->survey_no) . '</td>
+                    <td>' . number_format($app->landRecord->total_area, 2) . ' sqm</td>
+                    <td>' . \Carbon\Carbon::parse($app->date_received)->format('M d, Y') . '</td>
+                    <td class="text-center">
+                        <span class="status-badge ' . $statusClass . '">' . htmlspecialchars($statusText) . '</span>
+                    </td>
+                    <td class="text-center">
+                        <div class="d-flex justify-content-center gap-2">
+                            <a href="' . route('applications.show', $app->id) . '" class="action-link" title="View Details">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="' . route('applications.edit', $app->id) . '" class="action-link" title="Edit">
+                                <i class="fas fa-pen-to-square"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+            ';
+        }
+
+        return response()->json(['html' => $html]);
+    }
+
+    /**
+     * Display the Processing Queue page - shows pending and in-process applications
+     * Used as a workstation for reviewing and processing records (Land Officers Only)
+     */
+    public function processingQueue(Request $request)
+    {
+        // AUTHORIZATION: Only Land Officers can access the Processing Queue
+        if (Auth::user()->role !== 'land_officer') {
+            abort(403, 'Unauthorized: Only Land Officers can access the Processing Queue.');
+        }
+
+        $query = Application::with(['applicant', 'landRecord', 'statusHistories']);
+
+        // Filter by status if provided
+        if ($request->has('status') && !empty($request->status)) {
+            $status = $request->status;
+            // Get latest status for each application
+            $query->whereHas('statusHistories', function ($q) use ($status) {
+                $q->where('status', $status)
+                  ->where('id', function ($subquery) {
+                      $subquery->selectRaw('MAX(id)')
+                              ->from('status_histories')
+                              ->whereColumn('status_histories.application_id', 'applications.id');
+                  });
+            });
+        } else {
+            // Default: show pending and in-process applications
+            $query->whereHas('statusHistories', function ($q) {
+                $q->where('status', '!=', 'Approved')
+                  ->where('status', '!=', 'Rejected')
+                  ->where('id', function ($subquery) {
+                      $subquery->selectRaw('MAX(id)')
+                              ->from('status_histories')
+                              ->whereColumn('status_histories.application_id', 'applications.id');
+                  });
+            });
+        }
+
+        // Sort by oldest first (date_received)
+        if ($request->has('sort') && $request->sort === 'newest') {
+            $query->latest('date_received');
+        } else {
+            $query->oldest('date_received');
+        }
+
+        $applications = $query->paginate(25);
+
+        return view('applications.processing-queue', compact('applications'));
+    }
+
+    /**
+     * Get count of pending applications for the processing queue
+     * Used in navbar to show pending task count (Land Officers Only)
+     */
+    public function getPendingCount()
+    {
+        // Only Land Officers can see pending count
+        if (Auth::user()->role !== 'land_officer') {
+            return response()->json(['count' => 0]);
+        }
+
+        $count = Application::whereHas('statusHistories', function ($q) {
+            $q->where('status', '!=', 'Approved')
+              ->where('status', '!=', 'Rejected')
+              ->where('id', function ($subquery) {
+                  $subquery->selectRaw('MAX(id)')
+                          ->from('status_histories')
+                          ->whereColumn('status_histories.application_id', 'applications.id');
+              });
+        })->count();
+
+        return response()->json(['count' => $count]);
+    }
+
+    /**
+     * Update application status via Processing Modal (AJAX)
+     * Land Officers use this endpoint to quickly assess applications
+     */
+    public function updateStatusFromModal(Request $request)
+    {
+        // AUTHORIZATION: Only Land Officers can use this endpoint
+        if (Auth::user()->role !== 'land_officer') {
+            return response()->json(['success' => false, 'message' => 'Unauthorized access.'], 403);
+        }
+
+        // Validate request
+        $validated = $request->validate([
+            'application_id' => 'required|exists:applications,id',
+            'status' => 'required|in:Pending,In Process,Approved,Rejected',
+            'land_officer_remarks' => 'required|string|min:10'
+        ]);
+
+        try {
+            $application = Application::findOrFail($validated['application_id']);
+
+            // Create status history record (audit trail)
+            StatusHistory::create([
+                'application_id' => $application->id,
+                'status' => $validated['status'],
+                'remarks' => $validated['land_officer_remarks'],
+                'updated_by' => Auth::user()->name
+            ]);
+
+            // Update application's remarks field (for quick reference)
+            $application->update([
+                'land_officer_remarks' => $validated['land_officer_remarks'],
+                'land_officer_id' => Auth::id(),
+                'assessed_at' => now()
+            ]);
+
+            \Log::info('✓ Application status updated via Processing Modal', [
+                'application_id' => $application->id,
+                'tracking_no' => $application->tracking_no,
+                'new_status' => $validated['status'],
+                'land_officer' => Auth::user()->name,
+                'timestamp' => now()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Assessment saved successfully!',
+                'application_id' => $application->id,
+                'new_status' => $validated['status']
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('✗ Error updating status via Processing Modal', [
+                'application_id' => $validated['application_id'],
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save assessment. Please try again.'
+            ], 500);
+        }
     }
 }

@@ -1,66 +1,80 @@
-@extends('layouts.auth')
+@extends('layouts.guest')
 
 @section('content')
 <div class="login-card">
-    <div class="login-header">
-        <h2><i class="fas fa-map-marked-alt me-2 text-primary"></i> ATLAS</h2>
-        <p>Land Allocation Management System</p>
+    <!-- Session Status -->
+    @if ($errors->any())
+        <div class="session-status">
+            ⚠️ Login failed. Please check your credentials and try again.
+        </div>
+    @endif
+
+    <!-- Profile Circle with Logo -->
+    <div class="profile-circle">
+        <img src="{{ Vite::asset('resources/images/logo.png') }}" alt="DENR Logo">
     </div>
-    
-    <div class="card-body p-4">
-        @if ($errors->any())
-            <div class="alert alert-danger" role="alert">
-                <strong><i class="fas fa-exclamation-circle me-2"></i>Login Failed!</strong>
-                @foreach ($errors->all() as $error)
-                    <div>{{ $error }}</div>
-                @endforeach
-            </div>
-        @endif
 
-        <form action="{{ route('login.store') }}" method="POST">
-            @csrf
+    <!-- Title -->
+    <h1 class="login-title">
+        Automated Tracking of Land Application System
+    </h1>
 
-            <div class="mb-3">
-                <label for="username" class="form-label fw-bold">Username</label>
-                <input 
-                    type="text" 
-                    class="form-control @error('username') is-invalid @enderror" 
-                    id="username" 
-                    name="username" 
-                    value="{{ old('username') }}"
-                    placeholder="Enter your username"
-                    required
-                    autofocus>
-                @error('username')
-                    <span class="invalid-feedback">{{ $message }}</span>
-                @enderror
-            </div>
+    <!-- Login Form -->
+    <form method="POST" action="{{ route('login') }}" class="login-form">
+        @csrf
 
-            <div class="mb-3">
-                <label for="password" class="form-label fw-bold">Password</label>
-                <input 
-                    type="password" 
-                    class="form-control @error('password') is-invalid @enderror" 
-                    id="password" 
-                    name="password" 
-                    placeholder="Enter your password"
-                    required>
-                @error('password')
-                    <span class="invalid-feedback">{{ $message }}</span>
-                @enderror
-            </div>
+        <!-- Email Address Input -->
+        <div class="input-group">
+            <i class="fas fa-envelope input-icon"></i>
+            <input 
+                id="email" 
+                class="form-input @error('email') is-invalid @enderror" 
+                type="email" 
+                name="email" 
+                value="{{ old('email') }}" 
+                required 
+                placeholder="Username or Email"
+                autocomplete="email"
+            >
+        </div>
+        {{-- @error('email')
+            <span class="error-message">{{ $message }}</span>
+        @enderror --}}
 
-            <button type="submit" class="btn btn-primary w-100 mt-2 fw-bold">
-                <i class="fas fa-sign-in-alt me-2"></i> Login
-            </button>
-        </form>
+        <!-- Password Input -->
+        <div class="input-group">
+            <i class="fas fa-lock input-icon"></i>
+            <input 
+                id="password" 
+                class="form-input @error('password') is-invalid @enderror" 
+                type="password" 
+                name="password" 
+                required 
+                placeholder="Password"
+                autocomplete="current-password"
+            >
+        </div>
+        @error('password')
+            <span class="error-message">{{ $message }}</span>
+        @enderror
 
-        <hr>
-        <p class="text-muted text-center small mb-0">
-            <strong><i class="fas fa-info-circle me-1"></i> Demo Credentials:</strong><br>
-            <span class="text-monospace">Username:</span> <code>admin</code><br>
-            <span class="text-monospace">Password:</span> <code>admin</code>
-        </p>
-    </div>
+        <!-- Remember Me Checkbox -->
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 5px;">
+            <input 
+                id="remember_me" 
+                type="checkbox" 
+                name="remember" 
+                style="width: 18px; height: 18px; cursor: pointer; accent-color: white;"
+            >
+            <label for="remember_me" style="color: white; font-size: 13px; cursor: pointer; margin: 0;">
+                Remember me
+            </label>
+        </div>
+
+        <!-- Login Button -->
+        <button type="submit" class="login-btn">
+            LOGIN
+        </button>
+    </form>
 </div>
 @endsection

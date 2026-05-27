@@ -67,6 +67,57 @@
         </div>
     </div>
 
+    <!-- Land Officer Assessment Card (if assessed) -->
+    @if($application->lot_type)
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i> Land Officer Assessment</h5>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <p class="mb-3"><strong>Lot Classification:</strong> 
+                        @if($application->lot_type === 'existing_lot')
+                            <span class="badge bg-info">Existing Lot</span>
+                        @else
+                            <span class="badge bg-warning text-dark">Subdivision</span>
+                        @endif
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <p class="mb-3"><strong>Assessed By:</strong> {{ $application->landOfficer->name ?? 'N/A' }}</p>
+                </div>
+            </div>
+
+            @if($application->lot_type === 'subdivision')
+            <div class="row mb-3 p-3 bg-light rounded">
+                <div class="col-md-6">
+                    <p class="mb-2"><strong>New Lot Number:</strong> {{ $application->new_lot_number ?? 'N/A' }}</p>
+                    <p class="mb-2"><strong>Subdivided Area:</strong> {{ number_format($application->subdivided_area ?? 0, 2) }} sqm</p>
+                </div>
+                <div class="col-md-6">
+                    <p class="mb-2"><strong>Mother Lot Total:</strong> {{ number_format($application->landRecord->total_area, 2) }} sqm</p>
+                    <p class="mb-2"><strong>Remaining Area:</strong> <span class="text-success fw-bold">{{ number_format($application->remaining_area ?? 0, 2) }}</span> sqm</p>
+                </div>
+            </div>
+            @endif
+
+            <div class="border-top pt-3">
+                <h6 class="fw-bold text-dark mb-2"><i class="fas fa-pen me-2 text-primary"></i> Official Remarks</h6>
+                <p class="text-muted mb-0">{{ $application->land_officer_remarks ?? 'No remarks provided.' }}</p>
+            </div>
+
+            @if($application->assessed_at)
+            <div class="mt-3 pt-3 border-top">
+                <small class="text-muted">
+                    <i class="fas fa-calendar me-1"></i> Assessment Date: {{ \Carbon\Carbon::parse($application->assessed_at)->format('M d, Y \a\t h:i A') }}
+                </small>
+            </div>
+            @endif
+        </div>
+    </div>
+    @endif
+
     <!-- Status History Timeline -->
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-header bg-info text-white">
@@ -101,9 +152,11 @@
 
     <!-- Action Buttons -->
     <div class="d-flex gap-2 mb-4">
-        <button class="btn btn-success fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#updateStatusModal">
-            <i class="fas fa-edit me-2"></i> Update Status
-        </button>
+        @if(auth()->user()->role === 'processing')
+            <button class="btn btn-success fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#updateStatusModal">
+                <i class="fas fa-edit me-2"></i> Update Status
+            </button>
+        @endif
         <a href="{{ route('applications.index') }}" class="btn btn-secondary fw-bold shadow-sm">
             <i class="fas fa-arrow-left me-2"></i> Back to List
         </a>
@@ -148,3 +201,46 @@
 </div>
 
 @endsection
+
+<script>
+console.log('📋 APPLICATION DETAILS PAGE LOADED');
+console.log('📍 Application ID:', {{ $application->id }});
+console.log('📍 Tracking Number:', '{{ $application->tracking_no }}');
+
+// Log assessment data if it exists
+@if($application->lot_type)
+    console.log('✅ LAND OFFICER ASSESSMENT DATA FOUND');
+    console.log('Assessment Details:', {
+        lotType: '{{ $application->lot_type }}',
+        status: '{{ $application->statusHistories()->latest()->first()->status ?? "N/A" }}',
+        assessedBy: '{{ $application->landOfficer->name ?? "N/A" }}',
+        assessedAt: '{{ $application->assessed_at }}',
+        remarks: '{{ substr($application->land_officer_remarks ?? "", 0, 50) }}...',
+    });
+
+    @if($application->lot_type === 'subdivision')
+        console.log('🔨 SUBDIVISION DETAILS:', {
+            newLotNumber: '{{ $application->new_lot_number }}',
+            subdividedArea: {{ $application->subdivided_area }},
+            totalArea: {{ $application->landRecord->total_area }},
+            remainingArea: {{ $application->remaining_area }},
+        });
+    @else
+        console.log('✓ EXISTING LOT - No subdivision details');
+    @endif
+@else
+    console.log('⏳ Assessment pending - Application not yet assessed by Land Officer');
+@endif
+
+// Log status history
+console.log('📜 STATUS HISTORY:');
+@foreach($application->statusHistories()->latest()->get() as $history)
+    console.log('  [{{ $history->created_at }}]', {
+        status: '{{ $history->status }}',
+        remarks: '{{ substr($history->remarks, 0, 50) }}...',
+        updatedBy: '{{ $history->updated_by }}'
+    });
+@endforeach
+
+console.log('✓ Application Details Page Ready');
+</script>

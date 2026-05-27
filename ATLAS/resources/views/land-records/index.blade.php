@@ -44,10 +44,10 @@
 
                 <!-- Export Button (Right) -->
                 <div class="dropdown">
-                    <button class="btn btn-outline-secondary btn-sm fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Export Data">
-                        <i class="fas fa-download me-2"></i> Export
+                    <button class="btn btn-outline-secondary btn-sm fw-bold" type="button" onclick="document.getElementById('landRecordsExportMenu').classList.toggle('show')">
+                        <i class="fas fa-download me-2"></i> Export <i class="fas fa-caret-down ms-1"></i>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    <ul class="dropdown-menu dropdown-menu-end" id="landRecordsExportMenu" style="position: absolute; right: 0;">
                         <li><a class="dropdown-item" href="{{ route('land-records.export', ['format' => 'csv']) }}"><i class="fas fa-file-csv me-2 text-success"></i>CSV</a></li>
                         <li><a class="dropdown-item" href="{{ route('land-records.export', ['format' => 'excel']) }}"><i class="fas fa-file-excel me-2 text-success"></i>Excel</a></li>
                         <li><a class="dropdown-item" href="{{ route('land-records.export', ['format' => 'pdf']) }}"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
@@ -146,6 +146,24 @@ document.querySelectorAll('.row-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', () => {
         const allChecked = document.querySelectorAll('.row-checkbox:checked').length === document.querySelectorAll('.row-checkbox').length;
         document.getElementById('selectAll').checked = allChecked;
+    });
+});
+
+// Close export dropdown only when clicking outside of it
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('click', function(event) {
+        const menu = document.getElementById('landRecordsExportMenu');
+        if (!menu) return;
+        
+        // Check if the click is on the export dropdown or the button that toggles it
+        const exportButton = document.querySelector('button[onclick*="landRecordsExportMenu"]');
+        const clickedMenu = event.target.closest('#landRecordsExportMenu');
+        const clickedButton = event.target === exportButton || event.target.closest('button[onclick*="landRecordsExportMenu"]');
+        
+        // Only close if clicking outside both the menu and button
+        if (!clickedMenu && !clickedButton) {
+            menu.classList.remove('show');
+        }
     });
 });
 </script>

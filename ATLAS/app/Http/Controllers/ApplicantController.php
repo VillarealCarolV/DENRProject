@@ -38,7 +38,16 @@ class ApplicantController extends Controller
         ]);
 
         // Save to the database
-        Applicant::create($validated);
+        $applicant = Applicant::create($validated);
+
+        // Return JSON response for AJAX requests, redirect for normal requests
+        if ($request->wantsJson() || $request->header('Accept') === 'application/json') {
+            return response()->json([
+                'success' => true,
+                'message' => 'Applicant created successfully!',
+                'applicant' => $applicant
+            ], 201);
+        }
 
         // Send the user back with a success message
         return redirect()->route('applicants.index')->with('success', 'Applicant saved successfully!');

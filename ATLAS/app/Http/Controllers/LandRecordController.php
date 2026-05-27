@@ -31,21 +31,30 @@ class LandRecordController extends Controller
     public function store(Request $request)
     {
        $validated = $request->validate([
-    // Forces exactly: 3 Letters, Dash, 2 Numbers, Dash, 6 Numbers (e.g., CSD-03-012345)
+    // Accepts 3 Letters, Dash, 2+ Numbers, Dash, 4+ Numbers (e.g., CSD-03-012345 or PSU-123-0001)
     'survey_no' => [
         'required',
         'string',
         'unique:land_records,survey_no',
-        'regex:/^[A-Za-z]{3}-\d{2}-\d{6}$/' 
+        'regex:/^[A-Za-z]{3}-\d{2,}-\d{4,}$/' 
     ],
     'total_area' => 'required|numeric|min:1',
     'location' => 'required|string',
 ]);
 
         // By default, 'is_subdivided' is false in our database migration
-        LandRecord::create($validated);
+        $landRecord = LandRecord::create($validated);
 
-        return back()->with('success', 'Backbone Test: Land Record saved successfully!');
+        // Return JSON response for AJAX requests, redirect for normal requests
+        if ($request->wantsJson() || $request->header('Accept') === 'application/json') {
+            return response()->json([
+                'success' => true,
+                'message' => 'Land Record saved successfully!',
+                'landRecord' => $landRecord
+            ], 201);
+        }
+
+        return back()->with('success', 'Land Record saved successfully!');
     }
 
     /**

@@ -2,23 +2,31 @@
 <aside class="sidebar bg-dark d-flex flex-column">
     <!-- Logo / Brand -->
     <div class="sidebar-header px-3 py-4 border-bottom border-secondary">
-        <a href="{{ route('dashboard') }}" class="text-decoration-none">
-            <span class="text-white fw-bold fs-6">ATLAS</span>
-        </a>
+        @if(auth()->user()->role === 'records_officer')
+            <a href="{{ route('applications.index') }}" class="text-decoration-none">
+                <span class="text-white fw-bold fs-6">ATLAS</span>
+            </a>
+        @else
+            <a href="{{ route('dashboard') }}" class="text-decoration-none">
+                <span class="text-white fw-bold fs-6">ATLAS</span>
+            </a>
+        @endif
     </div>
 
     <!-- Navigation Menu -->
     <nav class="sidebar-nav flex-grow-1 py-3">
         <ul class="nav flex-column">
-            <!-- Dashboard -->
-            <li class="nav-item">
-                <a href="{{ route('dashboard') }}" 
-                   class="nav-link sidebar-link {{ $active === 'dashboard' ? 'active' : '' }}"
-                   title="Dashboard">
-                    <i class="bi bi-speedometer2"></i>
-                    <span class="nav-text">Dashboard</span>
-                </a>
-            </li>
+            <!-- Dashboard (Hidden for Records Officers) -->
+            @if(auth()->user()->role !== 'records_officer')
+                <li class="nav-item">
+                    <a href="{{ route('dashboard') }}" 
+                       class="nav-link sidebar-link {{ $active === 'dashboard' ? 'active' : '' }}"
+                       title="Dashboard">
+                        <i class="bi bi-speedometer2"></i>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                </li>
+            @endif
 
             <!-- Applications -->
             <li class="nav-item">
@@ -29,6 +37,18 @@
                     <span class="nav-text">Applications</span>
                 </a>
             </li>
+
+            <!-- Processing Queue (Land Officers Only) -->
+            @if(auth()->user()->role === 'land_officer')
+                <li class="nav-item">
+                    <a href="{{ route('processing-queue') }}" 
+                       class="nav-link sidebar-link {{ str_contains($active, 'processing-queue') ? 'active' : '' }}"
+                       title="Processing Queue">
+                        <i class="bi bi-list-check"></i>
+                        <span class="nav-text">Queue</span>
+                    </a>
+                </li>
+            @endif
 
             <!-- Land Records -->
             <li class="nav-item">
@@ -50,6 +70,18 @@
                 </a>
             </li>
 
+            <!-- User Management (Admin Only) -->
+            @if(auth()->check() && auth()->user()->role === 'admin')
+                <li class="nav-item">
+                    <a href="{{ route('users.index') }}" 
+                       class="nav-link sidebar-link {{ str_contains($active, 'users') ? 'active' : '' }}"
+                       title="User Management">
+                        <i class="bi bi-shield-lock"></i>
+                        <span class="nav-text">Users</span>
+                    </a>
+                </li>
+            @endif
+
             <!-- Reports -->
             <li class="nav-item">
                 <a href="{{ route('reports.index') }}" 
@@ -63,10 +95,10 @@
     </nav>
 
     <!-- Sidebar Footer (User Menu) -->
-    <div class="sidebar-footer border-top border-secondary px-3 py-3">
-        <button class="btn btn-sm btn-outline-secondary w-100 text-white" onclick="document.getElementById('logout-form').submit()">
-            <i class="bi bi-box-arrow-right"></i>
-            <span class="nav-text">Logout</span>
+    <div class="sidebar-footer border-top border-secondary">
+        <button class="btn btn-sm btn-outline-secondary w-100 text-white d-flex flex-column align-items-center gap-2" onclick="document.getElementById('logout-form').submit()" style="padding: 12px!important;">
+            <i class="bi bi-box-arrow-right" style="font-size: 1.3rem;"></i>
+            <span class="nav-text" style="font-size: 0.8rem;">Logout</span>
         </button>
         <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
             @csrf

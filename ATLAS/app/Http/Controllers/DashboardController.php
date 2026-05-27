@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Application;
 use App\Models\Applicant;
 use App\Models\LandRecord;
@@ -13,40 +14,65 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        
+        // Records Officers do not have access to the Dashboard
+        // They use the Intake Workstation instead
+        if (Auth::user()->role === 'records_officer') {
+            return redirect()->route('applications.index');
+        }
+
+        // Land Officers' home page is the Processing Queue
+        if (Auth::user()->role === 'land_officer') {
+            return redirect()->route('processing-queue');
+        }
+        // Get dashboard stat cards with single queries
         $pendingCount = StatusHistory::where('status', 'Pending')->count();
         $currentMonth = Carbon::now()->month;
         $approvedThisMonth = StatusHistory::where('status', 'Approved')->whereMonth('created_at', $currentMonth)->count();
         $landRecordsCount = LandRecord::count();
         $activeApplicants = Applicant::count();
 
-        // --- THE CHART DATA (New!) ---
+        // --- OPTIMIZED CHART DATA (Reduced from 24 queries to 2!) ---
         $months = [];
         $submittedData = [];
         $approvedData = [];
 
-        // Loop through all 12 months of the current year
         $currentYear = Carbon::now()->year;
+
+        // Build month names
         for ($i = 1; $i <= 12; $i++) {
-            $months[] = Carbon::create()->month($i)->shortMonthName; // Jan, Feb, Mar...
-
-            // Count Applications submitted this month
-            $submittedData[] = Application::whereYear('created_at', $currentYear)
-                                          ->whereMonth('created_at', $i)
-                                          ->count();
-
-            // Count Applications Approved this month
-            $approvedData[] = StatusHistory::where('status', 'Approved')
-                                           ->whereYear('created_at', $currentYear)
-                                           ->whereMonth('created_at', $i)
-                                           ->count();
+            $months[] = Carbon::create()->month($i)->shortMonthName;
         }
 
-        // Send EVERYTHING to the view!
-        $recentApplications = Application::with(['applicant', 'landRecord', 'statusHistories'])
-                                         ->latest()
-                                         ->limit(10)
-                                         ->get();
+        // OPTIMIZATION: Get all submitted applications by month in ONE query
+        $submittedByMonth = Application::selectRaw('MONTH(created_at) as month, COUNT(*) as count')
+            ->whereYear('created_at', $currentYear)
+            ->groupBy('month')
+            ->pluck('count', 'month');
+
+        // OPTIMIZATION: Get all approved applications by month in ONE query
+        $approvedByMonth = StatusHistory::where('status', 'Approved')
+            ->selectRaw('MONTH(created_at) as month, COUNT(*) as count')
+            ->whereYear('created_at', $currentYear)
+            ->groupBy('month')
+            ->pluck('count', 'month');
+
+        // Build data arrays with proper month mapping (0 for months with no data)
+        for ($i = 1; $i <= 12; $i++) {
+            $submittedData[] = $submittedByMonth->get($i, 0);
+            $approvedData[] = $approvedByMonth->get($i, 0);
+        }
+
+        // OPTIMIZATION: Eager load only the latest status for each application
+        $recentApplications = Application::with([
+            'applicant',
+            'landRecord',
+            'statusHistories' => function($query) {
+                $query->latest()->limit(1);
+            }
+        ])
+            ->latest()
+            ->limit(10)
+            ->get();
         
         return view('dashboard', compact(
             'pendingCount', 'approvedThisMonth', 'landRecordsCount', 'activeApplicants',

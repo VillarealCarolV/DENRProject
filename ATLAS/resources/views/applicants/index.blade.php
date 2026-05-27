@@ -38,10 +38,10 @@
 
                 <!-- Export Button (Right) -->
                 <div class="dropdown">
-                    <button class="btn btn-outline-secondary btn-sm fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Export Data">
-                        <i class="fas fa-download me-2"></i> Export
+                    <button class="btn btn-outline-secondary btn-sm fw-bold" type="button" onclick="document.getElementById('applicantsExportMenu').classList.toggle('show')">
+                        <i class="fas fa-download me-2"></i> Export <i class="fas fa-caret-down ms-1"></i>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    <ul class="dropdown-menu dropdown-menu-end" id="applicantsExportMenu" style="position: absolute; right: 0;">
                         <li><a class="dropdown-item" href="{{ route('applicants.export', ['format' => 'csv']) }}"><i class="fas fa-file-csv me-2 text-success"></i>CSV</a></li>
                         <li><a class="dropdown-item" href="{{ route('applicants.export', ['format' => 'excel']) }}"><i class="fas fa-file-excel me-2 text-success"></i>Excel</a></li>
                         <li><a class="dropdown-item" href="{{ route('applicants.export', ['format' => 'pdf']) }}"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
@@ -92,8 +92,7 @@
                             <tr>
                                 <td colspan="5" class="text-center py-5 text-muted">
                                     <i class="fas fa-inbox fa-3x mb-3 text-light"></i>
-                                    <h5>No applicants found.</h5>
-                                    <p>Create a new applicant to get started.</p>
+                                    <h5>No applicants found in the system.</h5>
                                 </td>
                             </tr>
                         @endforelse
@@ -105,6 +104,8 @@
 </div>
 
 <script>
+console.log('👥 APPLICANTS LIST PAGE LOADED');
+
 function filterTable() {
     const searchInput = document.getElementById('searchInput').value.toLowerCase();
     const rows = document.querySelectorAll('.applicant-row');
@@ -126,6 +127,47 @@ document.querySelectorAll('.row-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', () => {
         const allChecked = document.querySelectorAll('.row-checkbox:checked').length === document.querySelectorAll('.row-checkbox').length;
         document.getElementById('selectAll').checked = allChecked;
+    });
+});
+
+// Add tracking to Edit buttons
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('✓ Applicants List Page Ready');
+    
+    // Find all Edit buttons
+    document.querySelectorAll('a[title="Edit"]').forEach((button, index) => {
+        button.addEventListener('click', function(e) {
+            const row = this.closest('.applicant-row');
+            const fullName = row.querySelector('.text-primary').textContent.trim();
+            
+            console.log('✏️ EDITING APPLICANT');
+            console.log('👤 Applicant Details:', {
+                fullName: fullName,
+                address: row.cells[2].textContent.trim(),
+                contactNo: row.cells[3].textContent.trim(),
+                timestamp: new Date().toLocaleTimeString()
+            });
+            
+            console.log('→ Redirecting to edit form...');
+        });
+    });
+});
+
+// Close export dropdown only when clicking outside of it
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('click', function(event) {
+        const menu = document.getElementById('applicantsExportMenu');
+        if (!menu) return;
+        
+        // Check if the click is on the export dropdown or the button that toggles it
+        const exportButton = document.querySelector('button[onclick*="applicantsExportMenu"]');
+        const clickedMenu = event.target.closest('#applicantsExportMenu');
+        const clickedButton = event.target === exportButton || event.target.closest('button[onclick*="applicantsExportMenu"]');
+        
+        // Only close if clicking outside both the menu and button
+        if (!clickedMenu && !clickedButton) {
+            menu.classList.remove('show');
+        }
     });
 });
 </script>

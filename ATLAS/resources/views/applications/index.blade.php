@@ -5,12 +5,12 @@
     
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3 class="fw-bold text-dark"><i class="fas fa-folder-open me-2 text-primary"></i> Application Records</h3>
-        <a href="{{ route('applications.masterCreate') }}" class="btn btn-primary fw-bold shadow-sm">
+        <a href="{{ route('applications.masterCreate') }}" class="btn btn-primary">
             <i class="fas fa-plus me-2"></i> New Master Intake
         </a>
     </div>
 
-    <div class="card shadow-sm border-0">
+    <div class="card border-0">
         <!-- Action Bar -->
         <div class="card-body p-3 border-bottom bg-light">
             <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
@@ -39,10 +39,10 @@
 
                 <!-- Export Button (Right) -->
                 <div class="dropdown">
-                    <button class="btn btn-outline-secondary btn-sm fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Export Data">
-                        <i class="fas fa-download me-2"></i> Export
+                    <button class="btn btn-outline-secondary btn-sm fw-bold" type="button" onclick="document.getElementById('applicationsExportMenu').classList.toggle('show')">
+                        <i class="fas fa-download me-2"></i> Export <i class="fas fa-caret-down ms-1"></i>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    <ul class="dropdown-menu dropdown-menu-end" id="applicationsExportMenu" style="position: absolute; right: 0;">
                         <li><a class="dropdown-item" href="{{ route('applications.export', ['format' => 'csv']) }}"><i class="fas fa-file-csv me-2 text-success"></i>CSV</a></li>
                         <li><a class="dropdown-item" href="{{ route('applications.export', ['format' => 'excel']) }}"><i class="fas fa-file-excel me-2 text-success"></i>Excel</a></li>
                         <li><a class="dropdown-item" href="{{ route('applications.export', ['format' => 'pdf']) }}"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
@@ -54,54 +54,56 @@
         <!-- Table -->
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle mb-0">
-                    <thead class="bg-dark text-white">
+                <table class="table align-middle mb-0">
+                    <thead>
                         <tr>
-                            <th class="ps-3" style="width: 30px;">
+                            <th style="width: 30px;">
                                 <input type="checkbox" class="form-check-input" id="selectAll" onchange="toggleSelectAll()">
                             </th>
-                            <th class="py-3 px-3">Tracking No.</th>
-                            <th class="py-3 px-3">Applicant Name</th>
-                            <th class="py-3 px-3">Survey No.</th>
-                            <th class="py-3 px-3">Total Area</th>
-                            <th class="py-3 px-3">Date Received</th>
-                            <th class="py-3 px-3 text-center">Status</th>
-                            <th class="py-3 px-3 text-center">Actions</th>
+                            <th>Tracking No.</th>
+                            <th>Applicant Name</th>
+                            <th>Survey No.</th>
+                            <th>Total Area</th>
+                            <th>Date Received</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($applications as $app)
                             <tr class="application-row">
-                                <td class="ps-3">
+                                <td>
                                     <input type="checkbox" class="form-check-input row-checkbox">
                                 </td>
-                                <td class="px-3 fw-bold text-primary">{{ $app->tracking_no }}</td>
-                                <td class="px-3">{{ $app->applicant->full_name }}</td>
-                                <td class="px-3">{{ $app->landRecord->survey_no }}</td>
-                                <td class="px-3">{{ number_format($app->landRecord->total_area, 2) }} sqm</td>
-                                <td class="px-3">{{ \Carbon\Carbon::parse($app->date_received)->format('M d, Y') }}</td>
-                                <td class="px-3 text-center">
+                                <td class="fw-bold">{{ $app->tracking_no }}</td>
+                                <td>{{ $app->applicant->full_name }}</td>
+                                <td>{{ $app->landRecord->survey_no }}</td>
+                                <td>{{ number_format($app->landRecord->total_area, 2) }} sqm</td>
+                                <td>{{ \Carbon\Carbon::parse($app->date_received)->format('M d, Y') }}</td>
+                                <td class="text-center">
                                     @php
                                         $latestStatus = $app->statusHistories()->latest()->first();
                                         $statusText = $latestStatus ? $latestStatus->status : 'Pending';
-                                        $badgeColor = match($statusText) {
-                                            'Approved' => 'bg-success',
-                                            'Rejected' => 'bg-danger',
-                                            'In Process' => 'bg-info text-dark',
-                                            default => 'bg-warning text-dark',
+                                        $statusClass = match($statusText) {
+                                            'Approved' => 'status-approved',
+                                            'Rejected' => 'status-rejected',
+                                            'In Process' => 'status-in-process',
+                                            default => 'status-pending',
                                         };
                                     @endphp
-                                    <span class="badge {{ $badgeColor }} px-3 py-2 shadow-sm status-badge">{{ $statusText }}</span>
+                                    <span class="status-badge {{ $statusClass }}">{{ $statusText }}</span>
                                 </td>
-                                <td class="px-3 text-center">
+                                <td class="text-center">
                                     <div class="d-flex justify-content-center gap-2">
-                                        <a href="{{ route('applications.show', $app->id) }}" class="btn btn-sm btn-link text-primary p-0" title="View Details" style="font-size: 1rem;">
+                                        <a href="{{ route('applications.show', $app->id) }}" class="action-link" title="View Details">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{{ route('applications.show', $app->id) }}" class="btn btn-sm btn-link text-warning p-0" title="Edit" style="font-size: 1rem;">
-                                            <i class="fas fa-pen-to-square"></i>
-                                        </a>
-                                        <button class="btn btn-sm btn-link text-danger p-0" title="Delete" style="font-size: 1rem;" onclick="if(confirm('Are you sure?')) {}">
+                                        @if(auth()->user()->role === 'land_officer')
+                                            <a href="{{ route('applications.edit', $app->id) }}" class="action-link" title="Edit/Approve">
+                                                <i class="fas fa-pen-to-square"></i>
+                                            </a>
+                                        @endif
+                                        <button class="action-link" style="border: none; background: none; padding: 0.25rem 0.5rem;" title="Delete" onclick="if(confirm('Are you sure?')) {}">
                                             <i class="fas fa-trash-can"></i>
                                         </button>
                                     </div>
@@ -158,6 +160,9 @@
 </div>
 
 <script>
+console.log('🗂️ APPLICATION LIST PAGE LOADED');
+console.log('ℹ️ User role:', '{{ auth()->user()->role }}');
+
 function filterTable() {
     const searchInput = document.getElementById('searchInput').value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter').value;
@@ -185,6 +190,50 @@ document.querySelectorAll('.row-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', () => {
         const allChecked = document.querySelectorAll('.row-checkbox:checked').length === document.querySelectorAll('.row-checkbox').length;
         document.getElementById('selectAll').checked = allChecked;
+    });
+});
+
+// Add tracking to Edit/Approve buttons
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('✓ Application List Page Ready');
+    
+    // Find all Edit/Approve buttons (pen-to-square icons for Land Officers)
+    document.querySelectorAll('a[title="Edit/Approve"]').forEach((button, index) => {
+        button.addEventListener('click', function(e) {
+            const row = this.closest('.application-row');
+            const trackingNo = row.querySelector('.text-primary').textContent.trim();
+            
+            console.log('✏️ LAND OFFICER CLICKING EDIT/APPROVE');
+            console.log('📋 Application Details:', {
+                trackingNo: trackingNo,
+                applicant: row.cells[2].textContent.trim(),
+                surveyNo: row.cells[3].textContent.trim(),
+                totalArea: row.cells[4].textContent.trim(),
+                status: row.querySelector('.status-badge').textContent.trim(),
+                timestamp: new Date().toLocaleTimeString()
+            });
+            
+            // Log that we're redirecting to edit form
+            console.log('→ Redirecting to assessment form...');
+        });
+    });
+});
+
+// Close export dropdown only when clicking outside of it
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('click', function(event) {
+        const menu = document.getElementById('applicationsExportMenu');
+        if (!menu) return;
+        
+        // Check if the click is on the export dropdown or the button that toggles it
+        const exportButton = document.querySelector('button[onclick*="applicationsExportMenu"]');
+        const clickedMenu = event.target.closest('#applicationsExportMenu');
+        const clickedButton = event.target === exportButton || event.target.closest('button[onclick*="applicationsExportMenu"]');
+        
+        // Only close if clicking outside both the menu and button
+        if (!clickedMenu && !clickedButton) {
+            menu.classList.remove('show');
+        }
     });
 });
 </script>

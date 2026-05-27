@@ -1,58 +1,84 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicantController;
 use App\Http\Controllers\LandRecordController;
-use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SubdivisionController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Route;
 
-// Login Routes (public - no authentication required)
-Route::get('/login', [LoginController::class, 'create'])->name('login');
-Route::post('/login', [LoginController::class, 'store'])->name('login.store');
-
-// Root route - redirect to login or dashboard
 Route::get('/', function () {
-    if (session('authenticated')) {
-        return redirect()->route('dashboard');
-    }
-    return redirect()->route('login');
-})->name('home');
+    return redirect('/dashboard');
+});
 
-// Logout Route
-Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth.session');
+Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
-// Protected Routes - Require authentication
-Route::middleware(['auth.session'])->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    
-    // Export Routes - Must be defined BEFORE resource routes to avoid conflict with {id} parameter
-    Route::get('/applications/export', [ApplicationController::class, 'export'])->name('applications.export');
-    Route::get('/land-records/export', [LandRecordController::class, 'export'])->name('land-records.export');
-    Route::get('/applicants/export', [ApplicantController::class, 'export'])->name('applicants.export');
-    
-    // Master Intake Form Route
-    Route::get('/master-intake', function () {
-        return view('applications.master-intake');
-    })->name('applications.masterCreate');
-    Route::post('/master-intake', [ApplicationController::class, 'masterStore'])->name('applications.masterStore');
-    Route::post('/applications/{id}/status', [ApplicationController::class, 'updateStatus'])->name('applications.updateStatus');
-    
-    // Resource Routes - Creates all standard CRUD routes automatically
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Search route
+    Route::get('/search', SearchController::class)->name('search');
+
+    // Export routes MUST be defined BEFORE resource routes to avoid route conflicts
+    Route::get('applications/export', [ApplicationController::class, 'export'])->name('applications.export');
+    Route::get('applicants/export', [ApplicantController::class, 'export'])->name('applicants.export');
+    Route::get('land-records/export', [LandRecordController::class, 'export'])->name('land-records.export');
+
+    // API endpoint for notification modal - get application details
+    Route::get('applications/{application}/details', [ApplicationController::class, 'getDetails'])->name('applications.details');
+    Route::get('applications/tracking/{trackingNo}/details', [ApplicationController::class, 'getDetailsByTracking'])->name('applications.detailsByTracking');
+
+    // Custom routes for master intake form (before resource routes)
+    Route::get('applications/master/create', [ApplicationController::class, 'masterCreate'])->name('applications.masterCreate');
+    Route::post('applications/master/store', [ApplicationController::class, 'masterStore'])->name('applications.masterStore');
+
+    // Intake Workstation for Records Officers
+    Route::get('applications/workstation/view', [ApplicationController::class, 'workstation'])->name('applications.workstation');
+    Route::get('applications/table-data', [ApplicationController::class, 'getTableData'])->name('applications.getTableData');
+    Route::get('applications/next-tracking-number', [ApplicationController::class, 'getNextTrackingNumber'])->name('applications.nextTrackingNumber');
+
+    // Processing Queue - Task/Application review workstation
+    Route::get('processing-queue', [ApplicationController::class, 'processingQueue'])->name('processing-queue');
+    Route::get('api/applications/pending-count', [ApplicationController::class, 'getPendingCount'])->name('applications.pendingCount');
+    Route::post('api/applications/update-status', [ApplicationController::class, 'updateStatusFromModal'])->name('applications.updateStatus');
+
+    // Resource routes for applications, applicants, and land records
+    Route::resource('applications', ApplicationController::class);
     Route::resource('applicants', ApplicantController::class);
     Route::resource('land-records', LandRecordController::class);
-    Route::resource('applications', ApplicationController::class);
-    Route::resource('subdivisions', SubdivisionController::class);
-    
     // Reports
-    Route::get('/reports', function () {
-        return view('reports.index');
-    })->name('reports.index');
+    Route::resource('reports', ReportsController::class, ['only' => ['index']]);
+    Route::get('reports/my-pending-backlog', [ReportsController::class, 'myPendingBacklog'])->name('reports.myPendingBacklog');
+    Route::get('reports/land-subdivision-report', [ReportsController::class, 'landSubdivisionReport'])->name('reports.landSubdivisionReport');
+
+    // Subdivision routes
+    Route::get('subdivisions/create', [SubdivisionController::class, 'create'])->name('subdivisions.create');
+    Route::post('subdivisions/store', [SubdivisionController::class, 'store'])->name('subdivisions.store');
+
+    // Application status update route
+    Route::post('applications/{id}/updateStatus', [ApplicationController::class, 'updateStatus'])->name('applications.updateStatus');
+
+    // Quick approve route for existing lots from notification modal
+    Route::post('applications/{application}/quick-approve', [ApplicationController::class, 'quickApprove'])->name('applications.quickApprove');
+
+    // Notification routes
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
+    Route::post('notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
     
-    // Search
-    Route::get('/search', function () {
-        return view('search.results');
-    })->name('search');
+    // AJAX Notification endpoints (for real-time updates)
+    Route::get('api/notifications/unread-count', [NotificationController::class, 'getUnreadCount'])->name('notifications.unreadCount');
+    Route::post('api/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsReadAjax'])->name('notifications.markAsReadAjax');
+
+    // User Management routes
+    Route::resource('users', UserController::class);
 });
+
+require __DIR__.'/auth.php';
