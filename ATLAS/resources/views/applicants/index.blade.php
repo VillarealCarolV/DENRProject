@@ -67,7 +67,7 @@
                     </thead>
                     <tbody>
                         @forelse($applicants ?? [] as $applicant)
-                            <tr class="applicant-row">
+                            <tr class="applicant-row" data-applicant-id="{{ $applicant->id }}">
                                 <td class="ps-3">
                                     <input type="checkbox" class="form-check-input row-checkbox">
                                 </td>
@@ -82,7 +82,12 @@
                                         <a href="{{ route('applicants.edit', $applicant->id) }}" class="btn btn-sm btn-link text-warning p-0" title="Edit" style="font-size: 1rem;">
                                             <i class="fas fa-pen-to-square"></i>
                                         </a>
-                                        <button class="btn btn-sm btn-link text-danger p-0" title="Delete" style="font-size: 1rem;" onclick="if(confirm('Are you sure?')) {}">
+                                        <button class="btn btn-sm btn-link text-danger p-0 delete-btn-handler" 
+                                                data-url="{{ route('applicants.destroy', $applicant->id) }}"
+                                                data-name="Applicant {{ $applicant->full_name }}"
+                                                data-row-selector="tr.applicant-row[data-applicant-id='{{ $applicant->id }}']"
+                                                title="Delete"
+                                                style="font-size: 1rem;">
                                             <i class="fas fa-trash-can"></i>
                                         </button>
                                     </div>

@@ -48,6 +48,7 @@ Route::middleware('auth')->group(function () {
     Route::get('processing-queue', [ApplicationController::class, 'processingQueue'])->name('processing-queue');
     Route::get('api/applications/pending-count', [ApplicationController::class, 'getPendingCount'])->name('applications.pendingCount');
     Route::post('api/applications/update-status', [ApplicationController::class, 'updateStatusFromModal'])->name('applications.updateStatus');
+    Route::post('applications/{id}/process', [ApplicationController::class, 'processApplication'])->name('applications.process');
 
     // Resource routes for applications, applicants, and land records
     Route::resource('applications', ApplicationController::class);

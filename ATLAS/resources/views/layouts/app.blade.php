@@ -7,8 +7,11 @@
 
     <title>{{ config('app.name', 'ATLAS') }}</title>
 
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap CSS (Local) -->
+    <link href="{{ asset('css/bootstrap.min.css') }}" rel="stylesheet">
+
+    <!-- SweetAlert2 CSS (Local) -->
+    <link href="{{ asset('css/sweetalert2.min.css') }}" rel="stylesheet">
   
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Bootstrap Icons -->
@@ -756,11 +759,14 @@
     <!-- Notification Modal -->
     <x-notification-modal />
 
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- jQuery (Local) -->
+    <script src="{{ asset('js/jquery-3.6.0.min.js') }}"></script>
 
-    <!-- Bootstrap JS Bundle (Load Once) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <!-- Bootstrap JS Bundle (Local) -->
+    <script src="{{ asset('js/bootstrap.bundle.min.js') }}"></script>
+
+    <!-- SweetAlert2 (Local) -->
+    <script src="{{ asset('js/sweetalert2.min.js') }}"></script>
 
     <!-- Initialize Dropdowns & Sidebar -->
     <script>
@@ -825,6 +831,138 @@
                     const button = menu.previousElementSibling;
                     if (!menu.contains(event.target) && !button.contains(event.target)) {
                         menu.classList.remove('show');
+                    }
+                });
+            });
+
+            /**
+             * GLOBAL DELETE HANDLER
+             * Handles all delete operations across the application with SweetAlert2 confirmation
+             * 
+             * Usage: Add data attributes to any delete button:
+             * <button class="delete-btn-handler" 
+             *         data-url="/route/to/delete/RESOURCE_ID"
+             *         data-name="Item Name"
+             *         data-row-selector="tr.item-row-RESOURCE_ID"
+             *         data-refresh="true">
+             *     <i class="fas fa-trash"></i> Delete
+             * </button>
+             */
+            $(document).on('click', '.delete-btn-handler', function(e) {
+                e.preventDefault();
+
+                const $btn = $(this);
+                const url = $btn.data('url');
+                const name = $btn.data('name') || 'this item';
+                const rowSelector = $btn.data('row-selector');
+                const shouldRefresh = $btn.data('refresh') === true || $btn.data('refresh') === 'true';
+                const csrfToken = $('meta[name="csrf-token"]').attr('content');
+
+                if (!url) {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Delete URL not configured properly',
+                        icon: 'error',
+                        confirmButtonColor: '#3085d6'
+                    });
+                    return;
+                }
+
+                // Show SweetAlert2 confirmation
+                Swal.fire({
+                    title: 'Delete ' + name + '?',
+                    text: 'This action cannot be undone.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: 'Yes, delete it!',
+                    cancelButtonText: 'Cancel',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Show loading state
+                        Swal.fire({
+                            title: 'Deleting...',
+                            html: 'Please wait while we delete ' + name,
+                            icon: 'info',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                            didOpen: (modal) => {
+                                Swal.showLoading();
+                            }
+                        });
+
+                        // Send AJAX DELETE request
+                        $.ajax({
+                            url: url,
+                            type: 'DELETE',
+                            headers: {
+                                'X-CSRF-TOKEN': csrfToken,
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json'
+                            },
+                            success: function(response) {
+                                // Remove row from DOM if selector provided
+                                if (rowSelector) {
+                                    $(rowSelector).fadeOut(300, function() {
+                                        $(this).remove();
+                                    });
+                                }
+
+                                // Show success message
+                                Swal.fire({
+                                    title: 'Deleted!',
+                                    text: name + ' has been successfully deleted.',
+                                    icon: 'success',
+                                    confirmButtonColor: '#3085d6',
+                                    timer: 2000,
+                                    timerProgressBar: true
+                                }).then(() => {
+                                    // Refresh page if configured
+                                    if (shouldRefresh) {
+                                        setTimeout(() => {
+                                            location.reload();
+                                        }, 500);
+                                    }
+                                });
+                            },
+                            error: function(xhr, status, error) {
+                                let errorMsg = 'An error occurred while deleting ' + name;
+
+                                try {
+                                    const response = xhr.responseJSON || JSON.parse(xhr.responseText);
+                                    if (response.message) {
+                                        errorMsg = response.message;
+                                    } else if (response.error) {
+                                        errorMsg = response.error;
+                                    }
+                                } catch (e) {
+                                    if (xhr.status === 404) {
+                                        errorMsg = name + ' not found or already deleted.';
+                                    } else if (xhr.status === 403) {
+                                        errorMsg = 'You do not have permission to delete ' + name;
+                                    } else {
+                                        errorMsg = 'Server error (' + xhr.status + '): ' + error;
+                                    }
+                                }
+
+                                Swal.fire({
+                                    title: 'Deletion Failed',
+                                    text: errorMsg,
+                                    icon: 'error',
+                                    confirmButtonColor: '#3085d6'
+                                });
+
+                                console.error('Delete error:', {
+                                    url: url,
+                                    status: xhr.status,
+                                    error: error,
+                                    response: xhr.responseText
+                                });
+                            }
+                        });
                     }
                 });
             });

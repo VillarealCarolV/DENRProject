@@ -137,6 +137,14 @@
                                        style="background: #3b82f6; color: white; padding: 4px 10px; font-size: 0.8rem; border-radius: 3px; text-decoration: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: background-color 0.15s ease;">
                                         <i class="fas fa-arrow-right" style="font-size: 0.7rem;"></i> Review
                                     </a>
+                                    <button class="delete-btn-handler" 
+                                            data-url="{{ route('applications.destroy', $application->id) }}"
+                                            data-name="Application {{ $application->tracking_no }}"
+                                            data-row-selector="tr.clickable-row[data-application-id='{{ $application->id }}']"
+                                            style="background: #dc2626; color: white; padding: 4px 10px; font-size: 0.8rem; border-radius: 3px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: background-color 0.15s ease; margin-left: 4px;"
+                                            title="Delete Application">
+                                        <i class="fas fa-trash" style="font-size: 0.7rem;"></i> Delete
+                                    </button>
                                 </td>
                             </tr>
                         @empty
@@ -274,80 +282,64 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content" style="border: none; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-radius: 6px;">
             
-            <!-- Modal Header - Minimalist -->
-            <div class="modal-header-minimalist d-flex justify-content-between align-items-start" style="border-bottom: 1px solid #f0f0f0;">
+            <div class="modal-header-minimalist d-flex justify-content-between align-items-start" style="border-bottom: 1px solid #f0f0f0; padding: 10px 15px;">
                 <div>
-                    <h5 class="mb-1" style="font-size: 1rem; font-weight: 700; color: #1f2937;">
+                    <h5 class="mb-0" style="font-size: 0.95rem; font-weight: 700; color: #1f2937;">
                         <i class="fas fa-tasks me-2" style="color: #3b82f6;"></i> Process Application
                     </h5>
-                    <small id="modalTrackingInfo" style="color: #9ca3af;">Tracking: <strong></strong></small>
+                    <small id="modalTrackingInfo" style="color: #9ca3af; font-size: 0.75rem;">Tracking: <strong>CENRO-2026-006</strong></small>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <!-- Modal Body - Minimalist -->
-            <div class="modal-body-minimalist">
+            <div class="modal-body-minimalist" style="padding: 10px 15px; max-height: 70vh; overflow-y: auto;">
                 
-                <!-- Application Info (Read-only) -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; padding: 12px; background-color: #f9fafb; border-radius: 4px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; padding: 8px 12px; background-color: #f9fafb; border-radius: 4px;">
                     <div>
-                        <div class="label-minimalist">Applicant</div>
-                        <div id="modalApplicant" style="font-size: 0.9rem; color: #1f2937; font-weight: 500;"></div>
+                        <div class="label-minimalist" style="font-size: 0.7rem; color: #6b7280; font-weight: 600; text-transform: uppercase;">Applicant</div>
+                        <div id="modalApplicant" style="font-size: 0.85rem; color: #1f2937; font-weight: 600;">Erica Cruz</div>
                     </div>
                     <div>
-                        <div class="label-minimalist">Survey No.</div>
-                        <div id="modalSurveyNo" style="font-size: 0.9rem; color: #1f2937; font-weight: 500;"></div>
+                        <div class="label-minimalist" style="font-size: 0.7rem; color: #6b7280; font-weight: 600; text-transform: uppercase;">Survey No.</div>
+                        <div id="modalSurveyNo" style="font-size: 0.85rem; color: #1f2937; font-weight: 600;">PSU-123-0034</div>
                     </div>
                 </div>
 
-                <!-- Assessment Form -->
                 <form id="processForm">
                     @csrf
                     <input type="hidden" id="applicationId" name="application_id">
 
-                    <!-- Lot Classification Section -->
-                    <div class="form-group-minimalist" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-bottom: 16px;">
-                        <label class="label-minimalist">Lot Classification <span style="color: #dc2626;">*</span></label>
-                        <div style="display: flex; gap: 16px; margin-top: 8px;">
-                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: #374151; cursor: pointer;">
-                                <input type="radio" name="lotClassification" value="existing" style="cursor: pointer;"> Existing Lot
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: #374151; cursor: pointer;">
-                                <input type="radio" name="lotClassification" value="subdivision" style="cursor: pointer;"> Subdivision
-                            </label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-top: 1px solid #e5e7eb; padding-top: 10px; margin-bottom: 8px;">
+                        <div class="form-group-minimalist">
+                            <label class="label-minimalist" style="font-size: 0.75rem;">Lot Classification <span style="color: #dc2626;">*</span></label>
+                            <div style="display: flex; gap: 12px; margin-top: 2px;">
+                                <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="radio" name="lot_classification" value="existing"> Existing
+                                </label>
+                                <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="radio" name="lot_classification" value="subdivision"> Subdiv
+                                </label>
+                            </div>
+                        </div>
+                        <div id="subdivisionLotSection" class="form-group-minimalist" style="display: none;">
+                            <label class="label-minimalist" style="font-size: 0.75rem;">New Lot Number</label>
+                            <input type="text" id="subdivisionLotNumber" name="subdivision_lot_number" class="form-control" style="font-size: 0.8rem; padding: 2px 8px; height: 30px;" placeholder="Lot 1A">
                         </div>
                     </div>
 
-                    <!-- Subdivision Lot Number (Conditional) -->
-                    <div id="subdivisionLotSection" class="form-group-minimalist" style="display: none;">
-                        <label class="label-minimalist">New Lot Number</label>
-                        <input type="text" id="subdivisionLotNumber" class="form-control input-minimalist" placeholder="e.g., Lot 1A, Lot 2B" style="width: 100%;">
-                    </div>
-
-                    <!-- Decision & Remarks + Patent Section (Hidden until lot classification is selected) -->
-                    <div id="decisionRemarksSection" style="display: none;">
-                        
-                        <!-- Final Decision & Remarks Section -->
-                        <div class="form-group-minimalist" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-bottom: 16px;">
-                            <label class="label-minimalist">Application Status <span style="color: #dc2626;">*</span></label>
-                            <select id="processStatus" class="form-control input-minimalist" required style="width: 100%;">
+                    <div id="decisionRemarksSection" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 8px;">
+                        <div class="form-group-minimalist">
+                            <label class="label-minimalist" style="font-size: 0.75rem;">Application Status <span style="color: #dc2626;">*</span></label>
+                            <select id="processStatus" name="status" class="form-control" style="font-size: 0.8rem; padding: 2px 8px; height: 30px;" required>
                                 <option value="">-- Select Status --</option>
                                 <option value="In Process">In Process</option>
                                 <option value="Approved">Approved</option>
                                 <option value="Rejected">Rejected</option>
                             </select>
                         </div>
-
-                        <!-- Official Remarks -->
                         <div class="form-group-minimalist">
-                            <label class="label-minimalist">Official Remarks <span style="color: #dc2626;">*</span></label>
-                            <textarea id="processRemarks" class="form-control input-minimalist" rows="3" placeholder="e.g., Approved based on verification. All documents complete." required style="width: 100%; font-family: inherit; resize: vertical;"></textarea>
-                        </div>
-
-                        <!-- Patent Information Section -->
-                        <div class="form-group-minimalist" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-bottom: 16px;">
-                            <label class="label-minimalist">Patent Type</label>
-                            <select id="patentType" class="form-control input-minimalist" style="width: 100%;">
+                            <label class="label-minimalist" style="font-size: 0.75rem;">Patent Type</label>
+                            <select id="patentType" name="patent_type" class="form-control" style="font-size: 0.8rem; padding: 2px 8px; height: 30px;">
                                 <option value="">-- Select Type --</option>
                                 <option value="Residential">Residential</option>
                                 <option value="Agricultural">Agricultural</option>
@@ -355,28 +347,27 @@
                                 <option value="Industrial">Industrial</option>
                             </select>
                         </div>
+                    </div>
 
-                        <!-- Patent Details -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 5px;">
                         <div class="form-group-minimalist">
-                            <label class="label-minimalist">Patent Details</label>
-                            <input type="text" id="patentDetails" class="form-control input-minimalist" placeholder="e.g., Patent No., Grant Details" style="width: 100%;">
+                            <label class="label-minimalist" style="font-size: 0.75rem;">Patent Details</label>
+                            <input type="text" id="patentDetails" name="patent_details" class="form-control" style="font-size: 0.8rem; padding: 2px 8px; height: 30px;" placeholder="Grant Details">
+                        </div>
+                        <div class="form-group-minimalist">
+                            <label class="label-minimalist" style="font-size: 0.75rem;">Official Remarks <span style="color: #dc2626;">*</span></label>
+                            <textarea id="processRemarks" name="remarks" class="form-control" rows="1" style="font-size: 0.8rem; padding: 4px 8px; resize: none;" placeholder="Remarks..."></textarea>
                         </div>
                     </div>
 
-                    <!-- Error Message -->
-                    <div id="processErrorMsg" class="alert alert-danger d-none" role="alert" style="font-size: 0.85rem; padding: 10px 12px; margin-bottom: 16px;"></div>
-
-                    <!-- Success Message -->
-                    <div id="processSuccessMsg" class="alert alert-success d-none" role="alert" style="font-size: 0.85rem; padding: 10px 12px; margin-bottom: 16px;"></div>
+                    <div id="processErrorMsg" class="alert alert-danger d-none" style="font-size: 0.7rem; padding: 4px 10px; margin-top: 5px; margin-bottom: 0;"></div>
+                    <div id="processSuccessMsg" class="alert alert-success d-none" style="font-size: 0.7rem; padding: 4px 10px; margin-top: 5px; margin-bottom: 0;"></div>
                 </form>
             </div>
 
-            <!-- Modal Footer - Minimalist -->
-            <div class="modal-footer" style="border-top: 1px solid #f0f0f0; background-color: #f9fafb; padding: 12px 20px; gap: 8px;">
-                <button type="button" class="btn btn-sm" style="background: transparent; border: 1px solid #d1d5db; color: #6b7280; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;" data-bs-dismiss="modal">
-                    Cancel
-                </button>
-                <button type="button" id="saveProcessBtn" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: background-color 0.15s ease;">
+            <div class="modal-footer" style="border-top: 1px solid #f0f0f0; background-color: #f9fafb; padding: 8px 15px;">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" style="font-size: 0.8rem; padding: 4px 12px;">Cancel</button>
+                <button type="button" id="saveProcessBtn" class="btn btn-sm btn-primary" style="font-size: 0.8rem; padding: 4px 12px; background-color: #3b82f6; border: none;">
                     <i class="fas fa-save me-1"></i> Save Assessment
                 </button>
             </div>
@@ -386,9 +377,28 @@
 
 
 <script>
+    // Wait for jQuery and Bootstrap to be fully loaded before initializing
+    function waitForDependencies(callback, attempts = 0) {
+        if (typeof jQuery !== 'undefined' && typeof bootstrap !== 'undefined') {
+            callback();
+        } else if (attempts < 50) {  // Wait up to 5 seconds
+            setTimeout(() => waitForDependencies(callback, attempts + 1), 100);
+        } else {
+            console.error('jQuery or Bootstrap failed to load. Using fallback initialization.');
+            // Fallback: at least try to initialize
+            callback();
+        }
+    }
+
+    waitForDependencies(function() {
+        console.log('jQuery and Bootstrap loaded. Initializing processing queue...');
+        setupRowClickHandlers();
+    });
+
     // Row click handler - Process Application modal
     function setupRowClickHandlers() {
         if (typeof jQuery === 'undefined' || typeof bootstrap === 'undefined') {
+            console.error('jQuery or Bootstrap not available. Retrying...');
             setTimeout(setupRowClickHandlers, 100);
             return;
         }
@@ -418,7 +428,7 @@
                 $('#processSuccessMsg').addClass('d-none');
                 
                 // Reset lot classification and patent fields
-                $('input[name="lotClassification"]').prop('checked', false);
+                $('input[name="lot_classification"]').prop('checked', false);
                 $('#subdivisionLotSection').hide();
                 $('#decisionRemarksSection').hide();
                 $('#subdivisionLotNumber').val('');
@@ -437,7 +447,7 @@
         });
         
         // Handle lot classification radio buttons
-        $(document).on('change', 'input[name="lotClassification"]', function() {
+        $(document).on('change', 'input[name="lot_classification"]', function() {
             // Show decision section when any lot classification is selected
             $('#decisionRemarksSection').show();
             
@@ -449,15 +459,122 @@
             }
         });
         
-        // Auto-fill remarks when status is changed to "Approved"
+        // Auto-fill remarks when status is changed to "Approved" (only if empty)
         $(document).on('change', '#processStatus', function() {
             let selectedStatus = $(this).val();
+            let remarksField = $('#processRemarks');
+            
             if (selectedStatus === 'Approved') {
-                $('#processRemarks').val('Patent');
+                // Only fill if the field is currently empty
+                if (!remarksField.val().trim()) {
+                    remarksField.val(' Patent ');
+                }
             }
+        });
+        
+        // Handle Save Assessment button click
+        $(document).on('click', '#saveProcessBtn', function() {
+            let appId = $('#applicationId').val();
+            
+            // Validate required fields
+            if (!appId) {
+                showProcessError('Application ID is missing');
+                return;
+            }
+            
+            if (!$('#processStatus').val()) {
+                showProcessError('Please select an Application Status');
+                return;
+            }
+            
+            if (!$('#processRemarks').val()) {
+                showProcessError('Please enter Official Remarks');
+                return;
+            }
+            
+            // Prepare JSON data
+            let submitData = {
+                application_id: $('#applicationId').val(),
+                lot_classification: $('input[name="lot_classification"]:checked').val() || '',
+                subdivision_lot_number: $('#subdivisionLotNumber').val() || '',
+                status: $('#processStatus').val(),
+                patent_type: $('#patentType').val() || '',
+                patent_details: $('#patentDetails').val() || '',
+                remarks: $('#processRemarks').val(),
+                _token: $('meta[name="csrf-token"]').attr('content')
+            };
+            
+            console.log('Submitting data:', submitData);
+            
+            // Show loading state
+            $('#saveProcessBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Processing...');
+            $('#processErrorMsg').addClass('d-none');
+            $('#processSuccessMsg').addClass('d-none');
+            
+            // Send AJAX request
+            $.ajax({
+                url: `/applications/${appId}/process`,
+                type: 'POST',
+                data: JSON.stringify(submitData),
+                contentType: 'application/json',
+                dataType: 'json',
+                success: function(response) {
+                    console.log('Success response:', response);
+                    showProcessSuccess(response.message || 'Assessment saved successfully!');
+                    
+                    // Reload applications list after 1.5 seconds
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1500);
+                },
+                error: function(xhr, status, error) {
+                    console.error('Ajax error:', status, error);
+                    console.error('Response:', xhr.responseText);
+                    
+                    let errorMsg = 'An error occurred while saving the assessment';
+                    
+                    try {
+                        let response = xhr.responseJSON || JSON.parse(xhr.responseText);
+                        
+                        if (response.message) {
+                            errorMsg = response.message;
+                        } else if (response.errors) {
+                            // Handle validation errors
+                            let errorList = [];
+                            for (let field in response.errors) {
+                                errorList.push(response.errors[field].join(', '));
+                            }
+                            errorMsg = errorList.join(' | ');
+                        }
+                    } catch (e) {
+                        errorMsg = 'Server error: ' + (xhr.status || 'Unknown') + ' - ' + error;
+                    }
+                    
+                    showProcessError(errorMsg);
+                },
+                complete: function() {
+                    $('#saveProcessBtn').prop('disabled', false).html('<i class="fas fa-save me-1"></i> Save Assessment');
+                }
+            });
         });
     }
     
-    setupRowClickHandlers();
+    // Helper functions for showing messages
+    function showProcessError(message) {
+        $('#processErrorMsg').removeClass('d-none').text(message);
+        $('#processSuccessMsg').addClass('d-none');
+        console.error('Process Error:', message);
+    }
+    
+    function showProcessSuccess(message) {
+        $('#processSuccessMsg').removeClass('d-none').text(message);
+        $('#processErrorMsg').addClass('d-none');
+        console.log('Process Success:', message);
+    }
+    
+    // Toggle filters section
+    $(document).on('click', '#toggleFiltersBtn', function() {
+        $('#filtersSection').slideToggle(300);
+    });
 </script>
 @endsection

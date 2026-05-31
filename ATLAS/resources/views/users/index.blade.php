@@ -48,7 +48,7 @@
                     </thead>
                     <tbody>
                         @forelse($users as $user)
-                            <tr>
+                            <tr data-user-id="{{ $user->id }}">
                                 <td class="ps-4">
                                     <strong>{{ $user->name }}</strong>
                                     @if(auth()->user()->id === $user->id)
@@ -92,8 +92,10 @@
                                             </a>
                                         @endif
                                         @if(auth()->user()->role === 'admin' && auth()->user()->id !== $user->id)
-                                            <button class="btn btn-outline-danger" 
-                                                    onclick="confirmDelete('{{ $user->id }}', '{{ $user->name }}')"
+                                            <button class="btn btn-outline-danger delete-btn-handler" 
+                                                    data-url="{{ route('users.destroy', $user->id) }}"
+                                                    data-name="User {{ $user->name }}"
+                                                    data-row-selector="tr[data-user-id='{{ $user->id }}']"
                                                     title="Delete User">
                                                 <i class="fas fa-trash"></i>
                                             </button>
@@ -122,36 +124,6 @@
     </div>
 </div>
 
-<!-- Delete Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white border-0">
-                <h5 class="modal-title">
-                    <i class="fas fa-trash me-2"></i>Delete User
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete <strong id="deleteUserName"></strong>?</p>
-                <p class="text-danger small mb-0">
-                    <i class="fas fa-exclamation-triangle me-1"></i>This action cannot be undone.
-                </p>
-            </div>
-            <div class="modal-footer border-top">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form id="deleteForm" method="POST" class="d-inline">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-trash me-1"></i>Delete User
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 <style>
     .table-hover tbody tr:hover {
         background-color: rgba(13, 110, 253, 0.05);
@@ -162,14 +134,4 @@
         font-size: 0.85rem;
     }
 </style>
-
-<script>
-    function confirmDelete(userId, userName) {
-        document.getElementById('deleteUserName').textContent = userName;
-        document.getElementById('deleteForm').action = '/users/' + userId;
-        
-        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-        deleteModal.show();
-    }
-</script>
 @endsection

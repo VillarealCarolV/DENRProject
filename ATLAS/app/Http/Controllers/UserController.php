@@ -158,18 +158,67 @@ class UserController extends Controller
     {
         // Only admins can delete users
         if (Auth::user()->role !== 'admin') {
-            abort(403, 'Unauthorized action.');
+            $message = 'Unauthorized: Only admins can delete users.';
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json(['success' => false, 'message' => $message, 'error' => $message], 403);
+            }
+            abort(403, $message);
         }
 
         // Prevent deleting the current user
         if (Auth::user()->id === $user->id) {
-            return redirect()->route('users.index')
-                ->with('error', 'You cannot delete your own account.');
+            $message = 'You cannot delete your own account.';
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json(['success' => false, 'message' => $message, 'error' => $message], 422);
+            }
+            return redirect()->route('users.index')->with('error', $message);
         }
 
-        $user->delete();
+        try {
+            $userName = $user->name;
 
-        return redirect()->route('users.index')
-            ->with('success', 'User deleted successfully.');
+            // Log deletion attempt
+            \Log::info('Deleting user', [
+                'user_id' => $user->id,
+                'user_name' => $userName,
+                'deleted_by' => Auth::user()->name,
+                'deleted_by_id' => Auth::id(),
+                'timestamp' => now()
+            ]);
+
+            $user->delete();
+
+            \Log::info('User successfully deleted', [
+                'user_id' => $user->id,
+                'user_name' => $userName
+            ]);
+
+            // Return JSON response for AJAX requests
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'User deleted successfully',
+                    'user_id' => $user->id
+                ]);
+            }
+
+            // Redirect for normal requests
+            return redirect()->route('users.index')->with('success', 'User deleted successfully.');
+
+        } catch (\Exception $e) {
+            \Log::error('Error deleting user', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'deleted_by' => Auth::user()->name
+            ]);
+
+            $message = 'An error occurred while deleting the user: ' . $e->getMessage();
+
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json(['success' => false, 'message' => $message, 'error' => $e->getMessage()], 500);
+            }
+
+            return back()->with('error', $message);
+        }
     }
 }

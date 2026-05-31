@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Applicant;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -94,7 +95,64 @@ class ApplicantController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        // AUTHORIZATION: Only admin and records_officer roles can delete applicants
+        $allowedRoles = ['admin', 'records_officer'];
+        if (!in_array(Auth::user()->role, $allowedRoles)) {
+            $message = 'Unauthorized: You do not have permission to delete applicants.';
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json(['success' => false, 'message' => $message, 'error' => $message], 403);
+            }
+            abort(403, $message);
+        }
+
+        try {
+            $applicant = Applicant::findOrFail($id);
+            $applicantName = $applicant->full_name;
+
+            // Log deletion attempt
+            \Log::info('Deleting applicant', [
+                'applicant_id' => $id,
+                'applicant_name' => $applicantName,
+                'deleted_by' => Auth::user()->name,
+                'deleted_by_id' => Auth::id(),
+                'timestamp' => now()
+            ]);
+
+            // Delete the applicant (cascade delete will handle related applications)
+            $applicant->delete();
+
+            \Log::info('Applicant successfully deleted', [
+                'applicant_id' => $id,
+                'applicant_name' => $applicantName
+            ]);
+
+            // Return JSON response for AJAX requests
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Applicant deleted successfully',
+                    'applicant_id' => $id
+                ]);
+            }
+
+            // Redirect for normal requests
+            return redirect()->route('applicants.index')->with('success', 'Applicant deleted successfully');
+
+        } catch (\Exception $e) {
+            \Log::error('Error deleting applicant', [
+                'applicant_id' => $id,
+                'error' => $e->getMessage(),
+                'deleted_by' => Auth::user()->name
+            ]);
+
+            $message = 'An error occurred while deleting the applicant: ' . $e->getMessage();
+
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json(['success' => false, 'message' => $message, 'error' => $e->getMessage()], 500);
+            }
+
+            return back()->with('error', $message);
+        }
     }
 
     /**

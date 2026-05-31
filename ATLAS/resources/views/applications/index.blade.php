@@ -71,7 +71,7 @@
                     </thead>
                     <tbody>
                         @forelse($applications as $app)
-                            <tr class="application-row">
+                            <tr class="application-row" data-app-id="{{ $app->id }}">
                                 <td>
                                     <input type="checkbox" class="form-check-input row-checkbox">
                                 </td>
@@ -103,7 +103,12 @@
                                                 <i class="fas fa-pen-to-square"></i>
                                             </a>
                                         @endif
-                                        <button class="action-link" style="border: none; background: none; padding: 0.25rem 0.5rem;" title="Delete" onclick="if(confirm('Are you sure?')) {}">
+                                        <button class="action-link delete-btn-handler" 
+                                                style="border: none; background: none; padding: 0.25rem 0.5rem; cursor: pointer;" 
+                                                data-url="{{ route('applications.destroy', $app->id) }}"
+                                                data-name="Application {{ $app->tracking_no }}"
+                                                data-row-selector="tr.application-row[data-app-id='{{ $app->id }}']"
+                                                title="Delete">
                                             <i class="fas fa-trash-can"></i>
                                         </button>
                                     </div>

@@ -322,7 +322,63 @@ class ApplicationController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        // AUTHORIZATION: Only admin, processing, and land_officer roles can delete applications
+        $allowedRoles = ['admin', 'processing', 'land_officer'];
+        if (!in_array(Auth::user()->role, $allowedRoles)) {
+            $message = 'Unauthorized: You do not have permission to delete applications.';
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json(['success' => false, 'message' => $message, 'error' => $message], 403);
+            }
+            abort(403, $message);
+        }
+
+        try {
+            $application = Application::findOrFail($id);
+
+            // Log deletion attempt
+            \Log::info('Deleting application', [
+                'application_id' => $id,
+                'tracking_no' => $application->tracking_no,
+                'deleted_by' => Auth::user()->name,
+                'deleted_by_id' => Auth::id(),
+                'timestamp' => now()
+            ]);
+
+            // Delete the application (this will cascade delete status histories due to foreign key constraint)
+            $application->delete();
+
+            \Log::info('Application successfully deleted', [
+                'application_id' => $id,
+                'tracking_no' => $application->tracking_no
+            ]);
+
+            // Return JSON response for AJAX requests
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Application deleted successfully',
+                    'application_id' => $id
+                ]);
+            }
+
+            // Redirect for normal requests
+            return redirect()->route('processing-queue')->with('success', 'Application deleted successfully');
+
+        } catch (\Exception $e) {
+            \Log::error('Error deleting application', [
+                'application_id' => $id,
+                'error' => $e->getMessage(),
+                'deleted_by' => Auth::user()->name
+            ]);
+
+            $message = 'An error occurred while deleting the application: ' . $e->getMessage();
+
+            if (request()->wantsJson() || request()->header('Accept') === 'application/json') {
+                return response()->json(['success' => false, 'message' => $message, 'error' => $e->getMessage()], 500);
+            }
+
+            return back()->with('error', $message);
+        }
     }
 
     /**
@@ -828,6 +884,115 @@ for ($col = 1; $col <= count($headings); $col++) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to save assessment. Please try again.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Process Application - Handle lot classification and patent details from Processing Modal
+     * Comprehensive endpoint for Land Officers to process applications with full details
+     */
+    public function processApplication(Request $request, $id)
+    {
+        // AUTHORIZATION: Only Land Officers can process applications
+        if (Auth::user()->role !== 'land_officer') {
+            return response()->json(['success' => false, 'message' => 'Unauthorized access.'], 403);
+        }
+
+        try {
+            \Log::info('Processing application', [
+                'app_id' => $id,
+                'request_data' => $request->all(),
+                'user' => Auth::user()->name
+            ]);
+
+            // Validate request
+            $validated = $request->validate([
+                'application_id' => 'required|exists:applications,id',
+                'lot_classification' => 'nullable|in:existing,subdivision',
+                'subdivision_lot_number' => 'nullable|string|max:255',
+                'status' => 'required|in:Pending,In Process,Approved,Rejected',
+                'patent_type' => 'nullable|string|max:255',
+                'patent_details' => 'nullable|string|max:1000',
+                'remarks' => 'required|string|min:5'
+            ]);
+
+            $application = Application::findOrFail($validated['application_id']);
+
+            // Prepare update data
+            $updateData = [
+                'land_officer_remarks' => $validated['remarks'],
+                'land_officer_id' => Auth::id(),
+                'assessed_at' => now(),
+            ];
+
+            // Only add patent_type if provided (not required)
+            if (!empty($validated['patent_type'])) {
+                $updateData['patent_type'] = $validated['patent_type'];
+            }
+
+            // Only add patent_details if provided; otherwise let DB use default 'Patent'
+            if (!empty($validated['patent_details'])) {
+                $updateData['patent_details'] = $validated['patent_details'];
+            }
+
+            // Handle lot classification if provided
+            if ($validated['lot_classification']) {
+                $updateData['lot_type'] = $validated['lot_classification'] === 'subdivision' ? 'subdivision' : 'existing_lot';
+                
+                if ($validated['lot_classification'] === 'subdivision') {
+                    $updateData['new_lot_number'] = $validated['subdivision_lot_number'] ?? null;
+                }
+            }
+
+            // Update application
+            $application->update($updateData);
+
+            // Create status history record (audit trail)
+            StatusHistory::create([
+                'application_id' => $application->id,
+                'status' => $validated['status'],
+                'remarks' => $validated['remarks'],
+                'updated_by' => Auth::user()->name
+            ]);
+
+            \Log::info('Application processed successfully', [
+                'application_id' => $application->id,
+                'tracking_no' => $application->tracking_no,
+                'lot_classification' => $validated['lot_classification'] ?? 'not_set',
+                'new_status' => $validated['status'],
+                'land_officer' => Auth::user()->name
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Assessment saved successfully!',
+                'application_id' => $application->id,
+                'new_status' => $validated['status']
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Validation error processing application', [
+                'application_id' => $id,
+                'errors' => $e->errors()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            \Log::error('Error processing application', [
+                'application_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save assessment: ' . $e->getMessage()
             ], 500);
         }
     }

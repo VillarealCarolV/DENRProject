@@ -1,185 +1,490 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold text-dark"><i class="fas fa-file-alt me-2 text-primary"></i> Application Details</h3>
-        <a href="{{ route('applications.index') }}" class="btn btn-secondary fw-bold shadow-sm">
-            <i class="fas fa-arrow-left me-2"></i> Back to List
-        </a>
-    </div>
+<style>
+    .page-wrapper {
+        background-color: #f3f4f6;
+        padding: 1.5rem 0.5rem;
+        min-height: 100vh;
+    }
 
-    <!-- Application Summary Card -->
-    <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-barcode me-2"></i> Application: {{ $application->tracking_no }}</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <h6 class="fw-bold text-dark mb-3"><i class="fas fa-user me-2 text-info"></i> Applicant Information</h6>
-                    <p class="mb-2"><strong>Full Name:</strong> {{ $application->applicant->full_name }}</p>
-                    <p class="mb-2"><strong>Address:</strong> {{ $application->applicant->address ?? 'N/A' }}</p>
-                    <p class="mb-2"><strong>Contact No:</strong> {{ $application->applicant->contact_no ?? 'N/A' }}</p>
-                </div>
-                <div class="col-md-6">
-                    <h6 class="fw-bold text-dark mb-3"><i class="fas fa-map me-2 text-success"></i> Land Record Information</h6>
-                    <p class="mb-2"><strong>Survey No:</strong> {{ $application->landRecord->survey_no }}</p>
-                    <p class="mb-2"><strong>Total Area:</strong> {{ number_format($application->landRecord->total_area, 2) }} sqm</p>
-                    <p class="mb-2"><strong>Location:</strong> {{ $application->landRecord->location }}</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    .document-container {
+        max-width: 950px;
+        margin: 0 auto;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
 
-    <!-- Application Details Card -->
-    <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-success text-white">
-            <h5 class="mb-0"><i class="fas fa-tasks me-2"></i> Application Details</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <p class="mb-3"><strong>Date Received:</strong> {{ \Carbon\Carbon::parse($application->date_received)->format('M d, Y') }}</p>
-                    <p class="mb-3"><strong>Patent Details:</strong> {{ $application->patent_details ?? 'N/A' }}</p>
-                </div>
-                <div class="col-md-6">
-                    <p class="mb-3"><strong>Patent Type:</strong> {{ $application->patent_type ?? 'N/A' }}</p>
-                </div>
-            </div>
-            
-            <!-- Current Status -->
-            <div class="border-top pt-3 mt-3">
-                <h6 class="fw-bold text-dark mb-2"><i class="fas fa-check-circle me-2 text-warning"></i> Current Status</h6>
-                @php
-                    $latestStatus = $application->statusHistories()->latest()->first();
-                    $statusText = $latestStatus ? $latestStatus->status : 'Pending';
-                    $badgeColor = match($statusText) {
-                        'Approved' => 'bg-success',
-                        'Rejected' => 'bg-danger',
-                        'In Process' => 'bg-info text-dark',
-                        default => 'bg-warning text-dark',
-                    };
-                @endphp
-                <span class="badge {{ $badgeColor }} px-3 py-2 shadow-sm">{{ $statusText }}</span>
-            </div>
-        </div>
-    </div>
+    /* Document Header */
+    .doc-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
 
-    <!-- Land Officer Assessment Card (if assessed) -->
-    @if($application->lot_type)
-    <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-success text-white">
-            <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i> Land Officer Assessment</h5>
-        </div>
-        <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <p class="mb-3"><strong>Lot Classification:</strong> 
-                        @if($application->lot_type === 'existing_lot')
-                            <span class="badge bg-info">Existing Lot</span>
-                        @else
-                            <span class="badge bg-warning text-dark">Subdivision</span>
-                        @endif
-                    </p>
-                </div>
-                <div class="col-md-6">
-                    <p class="mb-3"><strong>Assessed By:</strong> {{ $application->landOfficer->name ?? 'N/A' }}</p>
-                </div>
-            </div>
+    .tracking-info h2 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin: 0 0 0.35rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
 
-            @if($application->lot_type === 'subdivision')
-            <div class="row mb-3 p-3 bg-light rounded">
-                <div class="col-md-6">
-                    <p class="mb-2"><strong>New Lot Number:</strong> {{ $application->new_lot_number ?? 'N/A' }}</p>
-                    <p class="mb-2"><strong>Subdivided Area:</strong> {{ number_format($application->subdivided_area ?? 0, 2) }} sqm</p>
-                </div>
-                <div class="col-md-6">
-                    <p class="mb-2"><strong>Mother Lot Total:</strong> {{ number_format($application->landRecord->total_area, 2) }} sqm</p>
-                    <p class="mb-2"><strong>Remaining Area:</strong> <span class="text-success fw-bold">{{ number_format($application->remaining_area ?? 0, 2) }}</span> sqm</p>
+    .tracking-icon {
+        font-size: 1.35rem;
+        color: #3b82f6;
+    }
+
+    .tracking-meta {
+        font-size: 0.8rem;
+        color: #6b7280;
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .header-btns {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-sm-custom {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.75rem;
+        border: 1px solid #d1d5db;
+        background: #f9fafb;
+        color: #6b7280;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        text-decoration: none;
+        transition: all 0.15s;
+    }
+
+    .btn-sm-custom:hover {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 0 1.25rem;
+        background: white;
+    }
+
+    .tab-btn {
+        padding: 0.75rem 1rem;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+        color: #3b82f6;
+    }
+
+    .tab-btn.active {
+        color: #3b82f6;
+        border-bottom-color: #3b82f6;
+    }
+
+    /* Tab Panes */
+    .tab-pane {
+        display: none;
+        padding: 0;
+    }
+
+    .tab-pane.active {
+        display: block;
+    }
+
+    /* Section Separators */
+    .section-sep {
+        background-color: #f3f4f6;
+        padding: 0.75rem 1.25rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #1f2937;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #e5e7eb;
+        user-select: none;
+        transition: background 0.15s;
+    }
+
+    .section-sep:hover {
+        background-color: #e5e7eb;
+    }
+
+    .section-sep i:first-child {
+        margin-right: 0.5rem;
+    }
+
+    .section-sep-arrow {
+        font-size: 0.75rem;
+        transition: transform 0.2s;
+    }
+
+    .section-content {
+        padding: 0;
+        max-height: none;
+        overflow: visible;
+        transition: all 0.2s;
+    }
+
+    .section-content.collapsed {
+        display: none;
+    }
+
+    /* Data Table */
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .data-table tr {
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .data-table td {
+        padding: 0.45rem 1.25rem;
+        font-size: 0.85rem;
+    }
+
+    .data-table .label {
+        width: 150px;
+        color: #9ca3af;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        font-weight: 500;
+        vertical-align: top;
+    }
+
+    .data-table .value {
+        color: #1f2937;
+        font-weight: 400;
+    }
+
+    /* Status Badge */
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .status-approved {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .status-rejected {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .status-pending {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-in-process {
+        background: #dbeafe;
+        color: #0c4a6e;
+    }
+
+    @media (max-width: 768px) {
+        .document-container {
+            max-width: 100%;
+        }
+
+        .doc-header {
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .tracking-meta {
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .data-table .label {
+            width: 120px;
+        }
+
+        .data-table td {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+        }
+    }
+</style>
+
+<div class="page-wrapper">
+    <div class="document-container">
+        <!-- HEADER -->
+        <div class="doc-header">
+            <div class="tracking-info">
+                <h2>
+                    <i class="fas fa-barcode tracking-icon"></i>
+                    {{ $application->tracking_no }}
+                </h2>
+                <div class="tracking-meta">
+                    <span><i class="fas fa-calendar-alt"></i> {{ \Carbon\Carbon::parse($application->date_received)->format('M d, Y') }}</span>
+                    <span><i class="fas fa-user"></i> {{ $application->applicant->full_name }}</span>
                 </div>
             </div>
+            <div class="header-btns">
+                <a href="{{ route('applications.index') }}" class="btn-sm-custom">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+                @if(auth()->user()->role === 'processing')
+                    <button class="btn-sm-custom" data-bs-toggle="modal" data-bs-target="#updateStatusModal">
+                        <i class="fas fa-edit"></i> Update Status
+                    </button>
+                @endif
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab(this, 'details')">Details</button>
+            <button class="tab-btn" onclick="switchTab(this, 'history')">History</button>
+            @if($application->lot_type)
+                <button class="tab-btn" onclick="switchTab(this, 'assessment')">Assessment</button>
             @endif
+        </div>
 
-            <div class="border-top pt-3">
-                <h6 class="fw-bold text-dark mb-2"><i class="fas fa-pen me-2 text-primary"></i> Official Remarks</h6>
-                <p class="text-muted mb-0">{{ $application->land_officer_remarks ?? 'No remarks provided.' }}</p>
+        <!-- DETAILS TAB -->
+        <div id="details" class="tab-pane active">
+            <!-- APPLICANT INFORMATION -->
+            <div class="section-sep" onclick="toggleSection(this)">
+                <div>
+                    <i class="fas fa-user"></i> Applicant Information
+                </div>
+                <i class="fas fa-chevron-down section-sep-arrow"></i>
+            </div>
+            <div class="section-content">
+                <table class="data-table">
+                    <tr>
+                        <td class="label">Full Name</td>
+                        <td class="value">{{ $application->applicant->full_name }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Address</td>
+                        <td class="value">{{ $application->applicant->address ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Contact Number</td>
+                        <td class="value">{{ $application->applicant->contact_no ?? 'N/A' }}</td>
+                    </tr>
+                </table>
             </div>
 
-            @if($application->assessed_at)
-            <div class="mt-3 pt-3 border-top">
-                <small class="text-muted">
-                    <i class="fas fa-calendar me-1"></i> Assessment Date: {{ \Carbon\Carbon::parse($application->assessed_at)->format('M d, Y \a\t h:i A') }}
-                </small>
+            <!-- LAND INFORMATION -->
+            <div class="section-sep" onclick="toggleSection(this)">
+                <div>
+                    <i class="fas fa-map"></i> Land Record Information
+                </div>
+                <i class="fas fa-chevron-down section-sep-arrow"></i>
             </div>
-            @endif
-        </div>
-    </div>
-    @endif
+            <div class="section-content">
+                <table class="data-table">
+                    <tr>
+                        <td class="label">Survey Number</td>
+                        <td class="value">{{ $application->landRecord->survey_no }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Total Area</td>
+                        <td class="value">{{ number_format($application->landRecord->total_area, 2) }} sqm</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Location</td>
+                        <td class="value">{{ $application->landRecord->location }}</td>
+                    </tr>
+                </table>
+            </div>
 
-    <!-- Status History Timeline -->
-    <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-info text-white">
-            <h5 class="mb-0"><i class="fas fa-history me-2"></i> Status History & Audit Trail</h5>
+            <!-- APPLICATION DETAILS -->
+            <div class="section-sep" onclick="toggleSection(this)">
+                <div>
+                    <i class="fas fa-file-contract"></i> Application Details
+                </div>
+                <i class="fas fa-chevron-down section-sep-arrow"></i>
+            </div>
+            <div class="section-content">
+                <table class="data-table">
+                    <tr>
+                        <td class="label">Patent Type</td>
+                        <td class="value">{{ $application->patent_type ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Patent Details</td>
+                        <td class="value">{{ $application->patent_details ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Current Status</td>
+                        <td class="value">
+                            @php
+                                $latestStatus = $application->statusHistories()->latest()->first();
+                                $statusText = $latestStatus ? $latestStatus->status : 'Pending';
+                                $statusClass = match($statusText) {
+                                    'Approved' => 'status-approved',
+                                    'Rejected' => 'status-rejected',
+                                    'In Process' => 'status-in-process',
+                                    default => 'status-pending',
+                                };
+                            @endphp
+                            <span class="status-badge {{ $statusClass }}">{{ $statusText }}</span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
         </div>
-        <div class="card-body">
-            <div class="timeline">
+
+        <!-- HISTORY TAB -->
+        <div id="history" class="tab-pane">
+            <div class="section-sep" onclick="toggleSection(this)">
+                <div>
+                    <i class="fas fa-history"></i> Status History & Audit Trail
+                </div>
+                <i class="fas fa-chevron-down section-sep-arrow"></i>
+            </div>
+            <div class="section-content" style="padding: 0;">
                 @forelse($application->statusHistories()->latest()->get() as $history)
-                    <div class="timeline-item mb-3 pb-3 {{ !$loop->last ? 'border-bottom' : '' }}">
-                        <div class="d-flex">
-                            <div class="timeline-marker me-3">
-                                <span class="badge bg-primary rounded-circle" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-{{ $history->status === 'Approved' ? 'check' : ($history->status === 'Rejected' ? 'times' : 'spinner') }}"></i>
-                                </span>
-                            </div>
-                            <div class="timeline-content flex-grow-1">
-                                <h6 class="fw-bold mb-1">{{ $history->status }}</h6>
-                                <p class="text-muted small mb-2">{{ $history->remarks }}</p>
-                                <small class="text-muted">
-                                    <i class="fas fa-user me-1"></i> Updated by: <strong>{{ $history->updated_by }}</strong>
-                                    <i class="fas fa-clock ms-2 me-1"></i> {{ $history->created_at->format('M d, Y \a\t h:i A') }}
-                                </small>
+                    <div style="padding: 0.6rem 1.25rem; border-bottom: 1px solid #f3f4f6; display: flex; gap: 0.75rem;">
+                        <div style="width: 32px; height: 32px; border-radius: 50%; background: #dbeafe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.75rem; flex-shrink: 0;">
+                            <i class="fas fa-{{ $history->status === 'Approved' ? 'check' : ($history->status === 'Rejected' ? 'times' : 'hourglass-half') }}"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; font-size: 0.8rem; color: #1f2937;">{{ $history->status }}</div>
+                            <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.15rem;">{{ $history->remarks }}</div>
+                            <div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">
+                                <i class="fas fa-user me-1"></i>{{ $history->updated_by }} • {{ $history->created_at->format('M d, Y h:i A') }}
                             </div>
                         </div>
                     </div>
                 @empty
-                    <p class="text-muted">No status history available.</p>
+                    <div style="padding: 1.5rem; text-align: center; color: #9ca3af; font-size: 0.85rem;">No history available</div>
                 @endforelse
             </div>
         </div>
-    </div>
 
-    <!-- Action Buttons -->
-    <div class="d-flex gap-2 mb-4">
-        @if(auth()->user()->role === 'processing')
-            <button class="btn btn-success fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#updateStatusModal">
-                <i class="fas fa-edit me-2"></i> Update Status
-            </button>
+        <!-- ASSESSMENT TAB -->
+        @if($application->lot_type)
+        <div id="assessment" class="tab-pane">
+            <!-- LOT CLASSIFICATION -->
+            <div class="section-sep" onclick="toggleSection(this)">
+                <div>
+                    <i class="fas fa-clipboard-check"></i> Lot Classification
+                </div>
+                <i class="fas fa-chevron-down section-sep-arrow"></i>
+            </div>
+            <div class="section-content">
+                <table class="data-table">
+                    <tr>
+                        <td class="label">Classification</td>
+                        <td class="value">
+                            @if($application->lot_type === 'existing_lot')
+                                <span class="status-badge" style="background: #d1fae5; color: #065f46;">Existing Lot</span>
+                            @else
+                                <span class="status-badge" style="background: #fef3c7; color: #92400e;">Subdivision</span>
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="label">Assessed By</td>
+                        <td class="value">{{ $application->landOfficer->name ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Assessment Date</td>
+                        <td class="value">{{ $application->assessed_at ? \Carbon\Carbon::parse($application->assessed_at)->format('M d, Y h:i A') : 'Pending' }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            @if($application->lot_type === 'subdivision')
+            <!-- SUBDIVISION DETAILS -->
+            <div class="section-sep" onclick="toggleSection(this)">
+                <div>
+                    <i class="fas fa-expand"></i> Subdivision Details
+                </div>
+                <i class="fas fa-chevron-down section-sep-arrow"></i>
+            </div>
+            <div class="section-content">
+                <table class="data-table">
+                    <tr>
+                        <td class="label">New Lot Number</td>
+                        <td class="value">{{ $application->new_lot_number ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Subdivided Area</td>
+                        <td class="value">{{ number_format($application->subdivided_area ?? 0, 2) }} sqm</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Mother Lot Total</td>
+                        <td class="value">{{ number_format($application->landRecord->total_area, 2) }} sqm</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Remaining Area</td>
+                        <td class="value" style="color: #059669; font-weight: 600;">{{ number_format($application->remaining_area ?? 0, 2) }} sqm</td>
+                    </tr>
+                </table>
+            </div>
+            @endif
+
+            <!-- REMARKS -->
+            <div class="section-sep" onclick="toggleSection(this)">
+                <div>
+                    <i class="fas fa-pen"></i> Official Remarks
+                </div>
+                <i class="fas fa-chevron-down section-sep-arrow"></i>
+            </div>
+            <div class="section-content">
+                <div style="padding: 0.75rem 1.25rem; color: #4b5563; font-size: 0.85rem; line-height: 1.5;">
+                    {{ $application->land_officer_remarks ?? 'No remarks provided.' }}
+                </div>
+            </div>
+        </div>
         @endif
-        <a href="{{ route('applications.index') }}" class="btn btn-secondary fw-bold shadow-sm">
-            <i class="fas fa-arrow-left me-2"></i> Back to List
-        </a>
-    </div>
 
+    </div>
 </div>
 
 <!-- Update Status Modal -->
 <div class="modal fade" id="updateStatusModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="fas fa-tasks me-2"></i>Update Application Status</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header" style="background: #3b82f6; color: white;">
+                <h5 class="modal-title"><i class="fas fa-tasks me-2"></i> Update Application Status</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form action="{{ route('applications.updateStatus', $application->id) }}" method="POST">
                 @csrf
-                <div class="modal-body text-start">
+                <div class="modal-body">
                     <p class="mb-3">Updating status for: <strong>{{ $application->tracking_no }}</strong></p>
                     
                     <div class="mb-3">
                         <label class="form-label fw-bold">New Status</label>
-                        <select name="status" class="form-select" required>
+                        <select name="status" class="form-select form-select-sm" required>
                             <option value="In Process">In Process</option>
                             <option value="Approved">Approved</option>
                             <option value="Rejected">Rejected</option>
@@ -188,59 +493,45 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Remarks / Notes</label>
-                        <textarea name="remarks" class="form-control" rows="3" placeholder="e.g., All documents verified. Patent ready for signature."></textarea>
+                        <textarea name="remarks" class="form-control form-control-sm" rows="3" placeholder="e.g., All documents verified. Patent ready for signature."></textarea>
                     </div>
                 </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success fw-bold">Save Update</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Save Update</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-@endsection
-
 <script>
-console.log('📋 APPLICATION DETAILS PAGE LOADED');
-console.log('📍 Application ID:', {{ $application->id }});
-console.log('📍 Tracking Number:', '{{ $application->tracking_no }}');
+    function switchTab(btn, tabId) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-pane').forEach(tab => tab.classList.remove('active'));
+        
+        // Remove active from all buttons
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        
+        // Show new tab and mark button active
+        document.getElementById(tabId).classList.add('active');
+        btn.classList.add('active');
+    }
 
-// Log assessment data if it exists
-@if($application->lot_type)
-    console.log('✅ LAND OFFICER ASSESSMENT DATA FOUND');
-    console.log('Assessment Details:', {
-        lotType: '{{ $application->lot_type }}',
-        status: '{{ $application->statusHistories()->latest()->first()->status ?? "N/A" }}',
-        assessedBy: '{{ $application->landOfficer->name ?? "N/A" }}',
-        assessedAt: '{{ $application->assessed_at }}',
-        remarks: '{{ substr($application->land_officer_remarks ?? "", 0, 50) }}...',
-    });
-
-    @if($application->lot_type === 'subdivision')
-        console.log('🔨 SUBDIVISION DETAILS:', {
-            newLotNumber: '{{ $application->new_lot_number }}',
-            subdividedArea: {{ $application->subdivided_area }},
-            totalArea: {{ $application->landRecord->total_area }},
-            remainingArea: {{ $application->remaining_area }},
-        });
-    @else
-        console.log('✓ EXISTING LOT - No subdivision details');
-    @endif
-@else
-    console.log('⏳ Assessment pending - Application not yet assessed by Land Officer');
-@endif
-
-// Log status history
-console.log('📜 STATUS HISTORY:');
-@foreach($application->statusHistories()->latest()->get() as $history)
-    console.log('  [{{ $history->created_at }}]', {
-        status: '{{ $history->status }}',
-        remarks: '{{ substr($history->remarks, 0, 50) }}...',
-        updatedBy: '{{ $history->updated_by }}'
-    });
-@endforeach
-
-console.log('✓ Application Details Page Ready');
+    function toggleSection(headerEl) {
+        const content = headerEl.nextElementSibling;
+        const arrow = headerEl.querySelector('.section-sep-arrow');
+        
+        if (content.classList.contains('collapsed')) {
+            content.classList.remove('collapsed');
+            arrow.classList.remove('fa-chevron-right');
+            arrow.classList.add('fa-chevron-down');
+        } else {
+            content.classList.add('collapsed');
+            arrow.classList.remove('fa-chevron-down');
+            arrow.classList.add('fa-chevron-right');
+        }
+    }
 </script>
+
+@endsection
