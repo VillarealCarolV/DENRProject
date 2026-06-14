@@ -5,9 +5,9 @@
     
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3 class="fw-bold text-dark"><i class="fas fa-map me-2 text-success"></i> Land Records</h3>
-        <a href="{{ route('land-records.create') }}" class="btn btn-success fw-bold shadow-sm">
+        {{-- <a href="{{ route('land-records.create') }}" class="btn btn-success fw-bold shadow-sm">
             <i class="fas fa-plus me-2"></i> New Land Record
-        </a>
+        </a> --}}
     </div>
 
     @if(session('success'))
@@ -40,6 +40,11 @@
                         <option value="Yes">Subdivided</option>
                         <option value="No">Not Subdivided</option>
                     </select>
+                    
+                    <!-- Bulk Delete Button (Hidden by default) -->
+                    <button id="bulkDeleteBtn" class="btn btn-danger btn-sm fw-bold d-none" onclick="confirmBulkDelete()" title="Delete selected land records">
+                        <i class="fas fa-trash-can me-2"></i> Delete Selected (<span id="selectedCount">0</span>)
+                    </button>
                 </div>
 
                 <!-- Export Button (Right) -->
@@ -74,7 +79,7 @@
                     </thead>
                     <tbody>
                         @forelse($landRecords ?? [] as $record)
-                            <tr class="land-row">
+                            <tr class="land-row" data-land-record-id="{{ $record->id }}">
                                 <td class="ps-3">
                                     <input type="checkbox" class="form-check-input row-checkbox">
                                 </td>
@@ -140,12 +145,128 @@ function toggleSelectAll() {
     const checkboxes = document.querySelectorAll('.row-checkbox');
     const selectAll = document.getElementById('selectAll');
     checkboxes.forEach(checkbox => checkbox.checked = selectAll.checked);
+    updateBulkDeleteButton();
 }
+
+function updateBulkDeleteButton() {
+    const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    
+    selectedCountSpan.textContent = selectedCount;
+    
+    if (selectedCount > 0) {
+        bulkDeleteBtn.classList.remove('d-none');
+    } else {
+        bulkDeleteBtn.classList.add('d-none');
+    }
+}
+
+function confirmBulkDelete() {
+    const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
+    
+    if (selectedCount === 0) {
+        alert('Please select at least one land record to delete.');
+        return;
+    }
+    
+    const confirmMessage = `Are you sure you want to delete ${selectedCount} land record(s)?\n\nThis action cannot be undone.`;
+    
+    if (confirm(confirmMessage)) {
+        executeBulkDelete();
+    }
+}
+
+function executeBulkDelete() {
+    const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked'))
+        .map(checkbox => checkbox.closest('.land-row').dataset.landRecordId);
+    
+    if (selectedIds.length === 0) {
+        alert('Please select at least one land record to delete.');
+        return;
+    }
+    
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const originalText = bulkDeleteBtn.innerHTML;
+    bulkDeleteBtn.disabled = true;
+    bulkDeleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Deleting...';
+    
+    fetch('{{ route("land-records.bulkDelete") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({ ids: selectedIds })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show';
+            alertDiv.role = 'alert';
+            alertDiv.innerHTML = `
+                <i class="fas fa-check-circle me-2"></i> ${data.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.container-fluid');
+            container.insertBefore(alertDiv, container.querySelector('.card'));
+            
+            // Remove deleted rows from table
+            selectedIds.forEach(id => {
+                const row = document.querySelector(`tr.land-row[data-land-record-id="${id}"]`);
+                if (row) {
+                    row.style.animation = 'fadeOut 0.3s';
+                    setTimeout(() => row.remove(), 300);
+                }
+            });
+            
+            // Reset checkboxes and button
+            document.getElementById('selectAll').checked = false;
+            document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
+            updateBulkDeleteButton();
+            
+            // Dismiss alert after 4 seconds
+            setTimeout(() => {
+                const closeBtn = alertDiv.querySelector('.btn-close');
+                if (closeBtn) closeBtn.click();
+            }, 4000);
+        } else {
+            alert(`Error: ${data.message}`);
+        }
+        
+        bulkDeleteBtn.disabled = false;
+        bulkDeleteBtn.innerHTML = originalText;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while deleting land records.');
+        bulkDeleteBtn.disabled = false;
+        bulkDeleteBtn.innerHTML = originalText;
+    });
+}
+
+// Add fade-out animation
+const style = document.createElement('style');
+style.innerHTML = `
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
 
 document.querySelectorAll('.row-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', () => {
         const allChecked = document.querySelectorAll('.row-checkbox:checked').length === document.querySelectorAll('.row-checkbox').length;
         document.getElementById('selectAll').checked = allChecked;
+        updateBulkDeleteButton();
     });
 });
 

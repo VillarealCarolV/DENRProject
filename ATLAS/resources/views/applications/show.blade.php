@@ -3,19 +3,23 @@
 @section('content')
 <style>
     .page-wrapper {
-        background-color: #f3f4f6;
-        padding: 1.5rem 0.5rem;
+        background-color: white;
+        padding: 0;
         min-height: 100vh;
+        display: flex;
+        flex-direction: column;
     }
 
     .document-container {
-        max-width: 950px;
-        margin: 0 auto;
+        width: 100%;
+        height: 100%;
         background: white;
-        border: 1px solid #d1d5db;
-        border-radius: 0.375rem;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
     }
 
     /* Document Header */
@@ -114,73 +118,133 @@
         display: block;
     }
 
-    /* Section Separators */
-    .section-sep {
-        background-color: #f3f4f6;
-        padding: 0.75rem 1.25rem;
+    /* Section Container */
+    .section-container {
+        
+        background: white;
+        margin-bottom: 1.5rem;
+        border-radius: 0.375rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    /* Section Header with Actions */
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .section-title {
         font-weight: 600;
-        font-size: 0.9rem;
+        font-size: 0.95rem;
         color: #1f2937;
-        cursor: pointer;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        border-bottom: 1px solid #e5e7eb;
-        user-select: none;
-        transition: background 0.15s;
+        gap: 0.5rem;
+        margin: 0;
     }
 
-    .section-sep:hover {
-        background-color: #e5e7eb;
+    .section-title i {
+        color: #16a34a;
+        font-size: 1rem;
     }
 
-    .section-sep i:first-child {
-        margin-right: 0.5rem;
+    .section-actions {
+        display: flex;
+        gap: 0.5rem;
     }
 
-    .section-sep-arrow {
-        font-size: 0.75rem;
-        transition: transform 0.2s;
-    }
-
-    .section-content {
-        padding: 0;
-        max-height: none;
-        overflow: visible;
-        transition: all 0.2s;
-    }
-
-    .section-content.collapsed {
-        display: none;
-    }
-
-    /* Data Table */
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .data-table tr {
-        border-bottom: 1px solid #f3f4f6;
-    }
-
-    .data-table td {
-        padding: 0.45rem 1.25rem;
-        font-size: 0.85rem;
-    }
-
-    .data-table .label {
-        width: 150px;
-        color: #9ca3af;
-        font-size: 0.75rem;
-        text-transform: uppercase;
+    /* Sage Green Sub-header */
+    .section-subheader {
+        background-color: #7cb382;
+        padding: 0.5rem 1.25rem;
+        color: white;
+        font-size: 0.8rem;
         font-weight: 500;
-        vertical-align: top;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        border-bottom: 1px solid #6b9b6d;
     }
 
-    .data-table .value {
+    .section-subheader i {
+        font-size: 0.7rem;
+    }
+
+    /* High-Density Grid for Metadata */
+    .metadata-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 0;
+        padding: 1rem 1.25rem;
+    }
+
+    .metadata-grid.grid-2col {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .metadata-grid.grid-4col {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .metadata-item {
+        padding-bottom: 0.75rem;
+        padding-right: 1.5rem;
+        border-right: 1px solid #e5e7eb;
+    }
+
+    .metadata-item:nth-child(2n) {
+        border-right: none;
+    }
+
+    @media (max-width: 1024px) {
+        .metadata-grid.grid-4col {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .metadata-item:nth-child(2n) {
+            border-right: 1px solid #e5e7eb;
+        }
+
+        .metadata-item:nth-child(4n) {
+            border-right: none;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .metadata-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .metadata-item {
+            border-right: none;
+            padding-right: 0;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .metadata-item:last-child {
+            border-bottom: none;
+        }
+    }
+
+    .metadata-label {
+        color: #9ca3af;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        margin-bottom: 0.25rem;
+        display: block;
+    }
+
+    .metadata-value {
         color: #1f2937;
-        font-weight: 400;
+        font-weight: 500;
+        font-size: 0.9rem;
     }
 
     /* Status Badge */
@@ -227,13 +291,24 @@
             gap: 0.25rem;
         }
 
-        .data-table .label {
-            width: 120px;
+        .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
         }
 
-        .data-table td {
-            padding: 0.35rem 0.75rem;
-            font-size: 0.8rem;
+        .metadata-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .metadata-item {
+            border-right: none;
+            padding-right: 0;
+            padding-bottom: 1rem;
+        }
+
+        .section-actions {
+            width: 100%;
         }
     }
 </style>
@@ -275,74 +350,86 @@
 
         <!-- DETAILS TAB -->
         <div id="details" class="tab-pane active">
-            <!-- APPLICANT INFORMATION -->
-            <div class="section-sep" onclick="toggleSection(this)">
-                <div>
-                    <i class="fas fa-user"></i> Applicant Information
+            
+            <!-- APPLICANT INFORMATION PANEL -->
+            <div class="section-container">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-user"></i> Applicant Information
+                    </h3>
+                    <div class="section-actions">
+                        <!-- Add action buttons here if needed -->
+                    </div>
                 </div>
-                <i class="fas fa-chevron-down section-sep-arrow"></i>
-            </div>
-            <div class="section-content">
-                <table class="data-table">
-                    <tr>
-                        <td class="label">Full Name</td>
-                        <td class="value">{{ $application->applicant->full_name }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Address</td>
-                        <td class="value">{{ $application->applicant->address ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Contact Number</td>
-                        <td class="value">{{ $application->applicant->contact_no ?? 'N/A' }}</td>
-                    </tr>
-                </table>
+                <div class="section-subheader">
+                    <i class="fas fa-chevron-down"></i> Details
+                </div>
+                <div class="metadata-grid grid-2col">
+                    <div class="metadata-item">
+                        <span class="metadata-label">Full Name</span>
+                        <div class="metadata-value">{{ $application->applicant->full_name }}</div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Contact Number</span>
+                        <div class="metadata-value">{{ $application->applicant->contact_no ?? 'N/A' }}</div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Address</span>
+                        <div class="metadata-value">{{ $application->applicant->address ?? 'N/A' }}</div>
+                    </div>
+                </div>
             </div>
 
-            <!-- LAND INFORMATION -->
-            <div class="section-sep" onclick="toggleSection(this)">
-                <div>
-                    <i class="fas fa-map"></i> Land Record Information
+            <!-- LAND INFORMATION PANEL -->
+            <div class="section-container">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-map"></i> Land Record Information
+                    </h3>
+                    <div class="section-actions">
+                        <!-- Add action buttons here if needed -->
+                    </div>
                 </div>
-                <i class="fas fa-chevron-down section-sep-arrow"></i>
-            </div>
-            <div class="section-content">
-                <table class="data-table">
-                    <tr>
-                        <td class="label">Survey Number</td>
-                        <td class="value">{{ $application->landRecord->survey_no }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Total Area</td>
-                        <td class="value">{{ number_format($application->landRecord->total_area, 2) }} sqm</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Location</td>
-                        <td class="value">{{ $application->landRecord->location }}</td>
-                    </tr>
-                </table>
+                <div class="section-subheader">
+                    <i class="fas fa-chevron-down"></i> Details
+                </div>
+                <div class="metadata-grid grid-4col">
+                    <div class="metadata-item">
+                        <span class="metadata-label">Survey Number</span>
+                        <div class="metadata-value">{{ $application->landRecord->survey_no }}</div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Total Area</span>
+                        <div class="metadata-value">{{ number_format($application->landRecord->total_area, 2) }} sqm</div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Location</span>
+                        <div class="metadata-value">{{ $application->landRecord->location }}</div>
+                    </div>
+                </div>
             </div>
 
-            <!-- APPLICATION DETAILS -->
-            <div class="section-sep" onclick="toggleSection(this)">
-                <div>
-                    <i class="fas fa-file-contract"></i> Application Details
+            <!-- APPLICATION DETAILS PANEL -->
+            <div class="section-container">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-file-contract"></i> Application Details
+                    </h3>
+                    <div class="section-actions">
+                        <!-- Add action buttons here if needed -->
+                    </div>
                 </div>
-                <i class="fas fa-chevron-down section-sep-arrow"></i>
-            </div>
-            <div class="section-content">
-                <table class="data-table">
-                    <tr>
-                        <td class="label">Patent Type</td>
-                        <td class="value">{{ $application->patent_type ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Patent Details</td>
-                        <td class="value">{{ $application->patent_details ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Current Status</td>
-                        <td class="value">
+                <div class="section-subheader">
+                    <i class="fas fa-chevron-down"></i> Details
+                </div>
+                <div class="metadata-grid grid-2col">
+                    <div class="metadata-item">
+                        <span class="metadata-label">Patent Type</span>
+                        <div class="metadata-value">{{ $application->patent_type ?? 'N/A' }}</div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Current Status</span>
+                        <div class="metadata-value">
                             @php
                                 $latestStatus = $application->statusHistories()->latest()->first();
                                 $statusText = $latestStatus ? $latestStatus->status : 'Pending';
@@ -354,115 +441,144 @@
                                 };
                             @endphp
                             <span class="status-badge {{ $statusClass }}">{{ $statusText }}</span>
-                        </td>
-                    </tr>
-                </table>
+                        </div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Patent Details</span>
+                        <div class="metadata-value">{{ $application->patent_details ?? 'N/A' }}</div>
+                    </div>
+                </div>
             </div>
+
         </div>
 
         <!-- HISTORY TAB -->
         <div id="history" class="tab-pane">
-            <div class="section-sep" onclick="toggleSection(this)">
-                <div>
-                    <i class="fas fa-history"></i> Status History & Audit Trail
+            <div class="section-container">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-history"></i> Status History & Audit Trail
+                    </h3>
+                    <div class="section-actions">
+                        <!-- Add action buttons here if needed -->
+                    </div>
                 </div>
-                <i class="fas fa-chevron-down section-sep-arrow"></i>
-            </div>
-            <div class="section-content" style="padding: 0;">
-                @forelse($application->statusHistories()->latest()->get() as $history)
-                    <div style="padding: 0.6rem 1.25rem; border-bottom: 1px solid #f3f4f6; display: flex; gap: 0.75rem;">
-                        <div style="width: 32px; height: 32px; border-radius: 50%; background: #dbeafe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.75rem; flex-shrink: 0;">
-                            <i class="fas fa-{{ $history->status === 'Approved' ? 'check' : ($history->status === 'Rejected' ? 'times' : 'hourglass-half') }}"></i>
-                        </div>
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: 600; font-size: 0.8rem; color: #1f2937;">{{ $history->status }}</div>
-                            <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.15rem;">{{ $history->remarks }}</div>
-                            <div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">
-                                <i class="fas fa-user me-1"></i>{{ $history->updated_by }} • {{ $history->created_at->format('M d, Y h:i A') }}
+                <div class="section-subheader">
+                    <i class="fas fa-chevron-down"></i> Details
+                </div>
+                <div style="padding: 0;">
+                    @forelse($application->statusHistories()->latest()->get() as $history)
+                        <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid #f3f4f6; display: flex; gap: 0.75rem;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: #dbeafe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.75rem; flex-shrink: 0;">
+                                <i class="fas fa-{{ $history->status === 'Approved' ? 'check' : ($history->status === 'Rejected' ? 'times' : 'hourglass-half') }}"></i>
+                            </div>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 600; font-size: 0.8rem; color: #1f2937;">{{ $history->status }}</div>
+                                <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.15rem;">{{ $history->remarks }}</div>
+                                <div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">
+                                    <i class="fas fa-user me-1"></i>{{ $history->updated_by }} • {{ $history->created_at->format('M d, Y h:i A') }}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                @empty
-                    <div style="padding: 1.5rem; text-align: center; color: #9ca3af; font-size: 0.85rem;">No history available</div>
-                @endforelse
+                    @empty
+                        <div style="padding: 1.5rem; text-align: center; color: #9ca3af; font-size: 0.85rem;">No history available</div>
+                    @endforelse
+                </div>
             </div>
         </div>
 
         <!-- ASSESSMENT TAB -->
         @if($application->lot_type)
         <div id="assessment" class="tab-pane">
-            <!-- LOT CLASSIFICATION -->
-            <div class="section-sep" onclick="toggleSection(this)">
-                <div>
-                    <i class="fas fa-clipboard-check"></i> Lot Classification
+            
+            <!-- LOT CLASSIFICATION PANEL -->
+            <div class="section-container">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-clipboard-check"></i> Lot Classification
+                    </h3>
+                    <div class="section-actions">
+                        <!-- Add action buttons here if needed -->
+                    </div>
                 </div>
-                <i class="fas fa-chevron-down section-sep-arrow"></i>
-            </div>
-            <div class="section-content">
-                <table class="data-table">
-                    <tr>
-                        <td class="label">Classification</td>
-                        <td class="value">
+                <div class="section-subheader">
+                    <i class="fas fa-chevron-down"></i> Details
+                </div>
+                <div class="metadata-grid grid-2col">
+                    <div class="metadata-item">
+                        <span class="metadata-label">Classification</span>
+                        <div class="metadata-value">
                             @if($application->lot_type === 'existing_lot')
                                 <span class="status-badge" style="background: #d1fae5; color: #065f46;">Existing Lot</span>
                             @else
                                 <span class="status-badge" style="background: #fef3c7; color: #92400e;">Subdivision</span>
                             @endif
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="label">Assessed By</td>
-                        <td class="value">{{ $application->landOfficer->name ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Assessment Date</td>
-                        <td class="value">{{ $application->assessed_at ? \Carbon\Carbon::parse($application->assessed_at)->format('M d, Y h:i A') : 'Pending' }}</td>
-                    </tr>
-                </table>
+                        </div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Assessed By</span>
+                        <div class="metadata-value">{{ $application->landOfficer->name ?? 'N/A' }}</div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Assessment Date</span>
+                        <div class="metadata-value">{{ $application->assessed_at ? \Carbon\Carbon::parse($application->assessed_at)->format('M d, Y h:i A') : 'Pending' }}</div>
+                    </div>
+                </div>
             </div>
 
             @if($application->lot_type === 'subdivision')
-            <!-- SUBDIVISION DETAILS -->
-            <div class="section-sep" onclick="toggleSection(this)">
-                <div>
-                    <i class="fas fa-expand"></i> Subdivision Details
+            <!-- SUBDIVISION DETAILS PANEL -->
+            <div class="section-container">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-expand"></i> Subdivision Details
+                    </h3>
+                    <div class="section-actions">
+                        <!-- Add action buttons here if needed -->
+                    </div>
                 </div>
-                <i class="fas fa-chevron-down section-sep-arrow"></i>
-            </div>
-            <div class="section-content">
-                <table class="data-table">
-                    <tr>
-                        <td class="label">New Lot Number</td>
-                        <td class="value">{{ $application->new_lot_number ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Subdivided Area</td>
-                        <td class="value">{{ number_format($application->subdivided_area ?? 0, 2) }} sqm</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Mother Lot Total</td>
-                        <td class="value">{{ number_format($application->landRecord->total_area, 2) }} sqm</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Remaining Area</td>
-                        <td class="value" style="color: #059669; font-weight: 600;">{{ number_format($application->remaining_area ?? 0, 2) }} sqm</td>
-                    </tr>
-                </table>
+                <div class="section-subheader">
+                    <i class="fas fa-chevron-down"></i> Details
+                </div>
+                <div class="metadata-grid grid-4col">
+                    <div class="metadata-item">
+                        <span class="metadata-label">New Lot Number</span>
+                        <div class="metadata-value">{{ $application->new_lot_number ?? 'N/A' }}</div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Subdivided Area</span>
+                        <div class="metadata-value">{{ number_format($application->subdivided_area ?? 0, 2) }} sqm</div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Mother Lot Total</span>
+                        <div class="metadata-value">{{ number_format($application->landRecord->total_area, 2) }} sqm</div>
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Remaining Area</span>
+                        <div class="metadata-value" style="color: #059669; font-weight: 600;">{{ number_format($application->remaining_area ?? 0, 2) }} sqm</div>
+                    </div>
+                </div>
             </div>
             @endif
 
-            <!-- REMARKS -->
-            <div class="section-sep" onclick="toggleSection(this)">
-                <div>
-                    <i class="fas fa-pen"></i> Official Remarks
+            <!-- REMARKS PANEL -->
+            <div class="section-container">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-pen"></i> Official Remarks
+                    </h3>
+                    <div class="section-actions">
+                        <!-- Add action buttons here if needed -->
+                    </div>
                 </div>
-                <i class="fas fa-chevron-down section-sep-arrow"></i>
-            </div>
-            <div class="section-content">
+                <div class="section-subheader">
+                    <i class="fas fa-chevron-down"></i> Details
+                </div>
                 <div style="padding: 0.75rem 1.25rem; color: #4b5563; font-size: 0.85rem; line-height: 1.5;">
                     {{ $application->land_officer_remarks ?? 'No remarks provided.' }}
                 </div>
             </div>
+
         </div>
         @endif
 
@@ -471,7 +587,7 @@
 
 <!-- Update Status Modal -->
 <div class="modal fade" id="updateStatusModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
             <div class="modal-header" style="background: #3b82f6; color: white;">
                 <h5 class="modal-title"><i class="fas fa-tasks me-2"></i> Update Application Status</h5>
@@ -516,21 +632,6 @@
         // Show new tab and mark button active
         document.getElementById(tabId).classList.add('active');
         btn.classList.add('active');
-    }
-
-    function toggleSection(headerEl) {
-        const content = headerEl.nextElementSibling;
-        const arrow = headerEl.querySelector('.section-sep-arrow');
-        
-        if (content.classList.contains('collapsed')) {
-            content.classList.remove('collapsed');
-            arrow.classList.remove('fa-chevron-right');
-            arrow.classList.add('fa-chevron-down');
-        } else {
-            content.classList.add('collapsed');
-            arrow.classList.remove('fa-chevron-down');
-            arrow.classList.add('fa-chevron-right');
-        }
     }
 </script>
 

@@ -20,14 +20,9 @@ class DashboardController extends Controller
             return redirect()->route('applications.index');
         }
 
-        // Land Officers' home page is the Processing Queue
-        if (Auth::user()->role === 'land_officer') {
-            return redirect()->route('processing-queue');
-        }
         // Get dashboard stat cards with single queries
         $pendingCount = StatusHistory::where('status', 'Pending')->count();
-        $currentMonth = Carbon::now()->month;
-        $approvedThisMonth = StatusHistory::where('status', 'Approved')->whereMonth('created_at', $currentMonth)->count();
+        $approvedThisMonth = StatusHistory::where('status', 'Approved')->count();
         $landRecordsCount = LandRecord::count();
         $activeApplicants = Applicant::count();
 

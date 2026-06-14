@@ -19,11 +19,6 @@
                         <i class="bi bi-list-task"></i> My Pending Backlog
                     </button>
                 </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="subdivision-tab" data-bs-toggle="tab" data-bs-target="#subdivision-content" type="button" role="tab" aria-controls="subdivision-content" aria-selected="false">
-                        <i class="bi bi-graph-up"></i> Land Subdivision Report
-                    </button>
-                </li>
             </ul>
         </div>
 
@@ -39,7 +34,7 @@
                     </div>
 
                     <!-- Statistics Cards -->
-                    <div class="row mb-4">
+                    {{-- <div class="row mb-4">
                         <div class="col-md-4 mb-3">
                             <div class="card border-left-primary h-100">
                                 <div class="card-body">
@@ -87,10 +82,55 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div> --}}
 
                     <!-- Pending Applications Table -->
                     <div class="card border-0 shadow-sm border-top">
+                        <!-- Export Button -->
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary btn-sm fw-bold" type="button" onclick="document.getElementById('pendingBacklogExportMenu').classList.toggle('show')">
+                                    <i class="fas fa-download me-2"></i> Export <i class="fas fa-caret-down ms-1"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" id="pendingBacklogExportMenu" style="position: absolute; right: 0;">
+                                    <li><a class="dropdown-item" href="{{ route('reports.exportPendingBacklog', ['format' => 'csv']) }}"><i class="fas fa-file-csv me-2 text-success"></i>CSV</a></li>
+                                    <li><a class="dropdown-item" href="{{ route('reports.exportPendingBacklog', ['format' => 'excel']) }}"><i class="fas fa-file-excel me-2 text-success"></i>Excel</a></li>
+                                    <li><a class="dropdown-item" href="{{ route('reports.exportPendingBacklog', ['format' => 'pdf']) }}"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <style>
+                            .dropdown-menu {
+                                display: none;
+                                position: absolute;
+                                background-color: #f9fafb;
+                                min-width: 160px;
+                                box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
+                                padding: 12px 0;
+                                z-index: 1;
+                                right: 0;
+                                border-radius: 4px;
+                                border: 1px solid #e5e7eb;
+                            }
+
+                            .dropdown-menu.show {
+                                display: block;
+                            }
+
+                            .dropdown-menu .dropdown-item {
+                                color: #374151;
+                                padding: 8px 16px;
+                                text-decoration: none;
+                                display: block;
+                                cursor: pointer;
+                            }
+
+                            .dropdown-menu .dropdown-item:hover {
+                                background-color: #f3f4f6;
+                            }
+                        </style>
+
                         <div class="card-body p-0">
                             @if($pendingApplications->count() > 0)
                                 <div class="table-responsive">
@@ -109,7 +149,7 @@
                                         <tbody>
                                             @foreach($pendingApplications as $application)
                                                 @php
-                                                    $daysPending = $application->date_received->diffInDays(now());
+                                                    $daysPending = (int)$application->date_received->diffInDays(now());
                                                     $urgency = $daysPending > 30 ? 'danger' : ($daysPending > 14 ? 'warning' : 'info');
                                                 @endphp
                                                 <tr>
@@ -117,7 +157,7 @@
                                                         <strong>{{ $application->tracking_no }}</strong>
                                                     </td>
                                                     <td class="px-4 py-3">
-                                                        {{ $application->applicant->name ?? 'N/A' }}
+                                                        {{ $application->applicant->full_name ?? 'N/A' }}
                                                     </td>
                                                     <td class="px-4 py-3">
                                                         {{ $application->landRecord->survey_no ?? 'N/A' }}
@@ -158,227 +198,6 @@
                                 <div class="alert alert-success m-4" role="alert">
                                     <i class="bi bi-check-circle"></i> 
                                     <strong>Great!</strong> You have no pending applications. All your work is up to date.
-                                </div>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Land Subdivision Report Tab -->
-            <div class="tab-pane fade" id="subdivision-content" role="tabpanel" aria-labelledby="subdivision-tab">
-                <div class="card-body">
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <p class="text-muted mb-0">Monthly performance review - {{ now()->format('F Y') }}</p>
-                        </div>
-                    </div>
-
-                    <!-- Key Statistics -->
-                    <div class="row mb-4">
-                        <div class="col-md-3 mb-3">
-                            <div class="card border-left-success h-100">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between">
-                                        <div>
-                                            <span class="text-muted small text-uppercase">Total Area Subdivided</span>
-                                            <h3 class="text-success font-weight-bold mt-2">{{ number_format($totalAreaSubdivided, 2) }}</h3>
-                                            <small class="text-muted">hectares</small>
-                                        </div>
-                                        <div class="text-success opacity-50">
-                                            <i class="fas fa-chart-line fa-2x"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-3 mb-3">
-                            <div class="card border-left-primary h-100">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between">
-                                        <div>
-                                            <span class="text-muted small text-uppercase">Avg Area per Application</span>
-                                            <h3 class="text-primary font-weight-bold mt-2">{{ number_format($averageAreaPerApplication, 2) }}</h3>
-                                            <small class="text-muted">hectares</small>
-                                        </div>
-                                        <div class="text-primary opacity-50">
-                                            <i class="fas fa-calculator fa-2x"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-3 mb-3">
-                            <div class="card border-left-info h-100">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between">
-                                        <div>
-                                            <span class="text-muted small text-uppercase">Applications Approved</span>
-                                            <h3 class="text-info font-weight-bold mt-2">{{ $totalApplicationsApproved }}</h3>
-                                            <small class="text-muted">this month</small>
-                                        </div>
-                                        <div class="text-info opacity-50">
-                                            <i class="fas fa-check-double fa-2x"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-3 mb-3">
-                            <div class="card border-left-warning h-100">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between">
-                                        <div>
-                                            <span class="text-muted small text-uppercase">Classifications</span>
-                                            <h3 class="text-warning font-weight-bold mt-2">{{ $classificationBreakdown->count() }}</h3>
-                                            <small class="text-muted">lot types</small>
-                                        </div>
-                                        <div class="text-warning opacity-50">
-                                            <i class="fas fa-tags fa-2x"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Classification Breakdown & Monthly Trend -->
-                    <div class="row mb-4">
-                        <div class="col-lg-6 mb-3">
-                            <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-white border-bottom py-3">
-                                    <h5 class="mb-0">
-                                        <i class="bi bi-tags"></i> Classification Breakdown
-                                    </h5>
-                                </div>
-                                <div class="card-body">
-                                    @if($classificationBreakdown->count() > 0)
-                                        <div class="table-responsive">
-                                            <table class="table table-sm mb-0">
-                                                <thead class="table-light">
-                                                    <tr>
-                                                        <th>Lot Type</th>
-                                                        <th>Count</th>
-                                                        <th>Total Area</th>
-                                                        <th>Avg Area</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    @foreach($classificationBreakdown as $type => $data)
-                                                        <tr>
-                                                            <td>
-                                                                <strong>{{ $type ?? 'Unclassified' }}</strong>
-                                                            </td>
-                                                            <td>{{ $data['count'] }}</td>
-                                                            <td>{{ number_format($data['total_area'], 2) }} ha</td>
-                                                            <td>{{ number_format($data['average_area'], 2) }} ha</td>
-                                                        </tr>
-                                                    @endforeach
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    @else
-                                        <p class="text-muted text-center py-3">No approved applications this month</p>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Monthly Trend -->
-                        <div class="col-lg-6 mb-3">
-                            <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-white border-bottom py-3">
-                                    <h5 class="mb-0">
-                                        <i class="bi bi-calendar3"></i> Monthly Trend (Year-to-Date)
-                                    </h5>
-                                </div>
-                                <div class="card-body">
-                                    <canvas id="monthlyTrendChart" height="300"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Approved Applications List -->
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-header bg-white border-bottom py-3">
-                            <h5 class="mb-0">
-                                <i class="bi bi-list-check"></i> Approved Applications This Month
-                            </h5>
-                        </div>
-                        <div class="card-body p-0">
-                            @if($subdividedApplications->count() > 0)
-                                <div class="table-responsive">
-                                    <table class="table table-hover mb-0">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th class="px-4 py-3">Tracking No</th>
-                                                <th class="px-4 py-3">Applicant</th>
-                                                <th class="px-4 py-3">Survey No</th>
-                                                <th class="px-4 py-3">Lot Type</th>
-                                                <th class="px-4 py-3">Subdivided Area</th>
-                                                <th class="px-4 py-3">Remaining Area</th>
-                                                <th class="px-4 py-3">Approval Date</th>
-                                                <th class="px-4 py-3">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach($subdividedApplications as $application)
-                                                <tr>
-                                                    <td class="px-4 py-3">
-                                                        <strong>{{ $application->tracking_no }}</strong>
-                                                    </td>
-                                                    <td class="px-4 py-3">
-                                                        {{ $application->applicant->name ?? 'N/A' }}
-                                                    </td>
-                                                    <td class="px-4 py-3">
-                                                        {{ $application->landRecord->survey_no ?? 'N/A' }}
-                                                    </td>
-                                                    <td class="px-4 py-3">
-                                                        @if($application->lot_type)
-                                                            <span class="badge bg-light text-dark">{{ $application->lot_type }}</span>
-                                                        @else
-                                                            <span class="text-muted">-</span>
-                                                        @endif
-                                                    </td>
-                                                    <td class="px-4 py-3">
-                                                        @if($application->subdivided_area)
-                                                            <strong>{{ number_format($application->subdivided_area, 2) }} ha</strong>
-                                                        @else
-                                                            <span class="text-muted">-</span>
-                                                        @endif
-                                                    </td>
-                                                    <td class="px-4 py-3">
-                                                        @if($application->remaining_area)
-                                                            {{ number_format($application->remaining_area, 2) }} ha
-                                                        @else
-                                                            <span class="text-muted">-</span>
-                                                        @endif
-                                                    </td>
-                                                    <td class="px-4 py-3">
-                                                        <small class="text-muted">
-                                                            {{ $application->statusHistories->first()?->created_at->format('M d, Y') ?? 'N/A' }}
-                                                        </small>
-                                                    </td>
-                                                    <td class="px-4 py-3">
-                                                        <a href="{{ route('applications.show', $application->id) }}" 
-                                                           class="btn btn-sm btn-outline-primary" 
-                                                           title="View Details">
-                                                            <i class="bi bi-eye"></i>
-                                                        </a>
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
-                                </div>
-                            @else
-                                <div class="alert alert-info m-4" role="alert">
-                                    <i class="bi bi-info-circle"></i> 
-                                    <strong>No Data Available</strong> - No approved applications this month yet.
                                 </div>
                             @endif
                         </div>
@@ -544,7 +363,7 @@
                             @foreach($recentApplications as $app)
                                 <tr>
                                     <td class="px-4 py-3"><strong>{{ $app->tracking_no }}</strong></td>
-                                    <td class="px-4 py-3">{{ $app->applicant->name ?? 'N/A' }}</td>
+                                    <td class="px-4 py-3">{{ $app->applicant->full_name ?? 'N/A' }}</td>
                                     <td class="px-4 py-3">
                                         @php
                                             $status = $app->statusHistories->first()?->status ?? 'Unknown';

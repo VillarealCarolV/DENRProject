@@ -7,7 +7,7 @@
         <h2 class="fw-bold text-dark mb-2">
             <i class="fas fa-briefcase me-2 text-primary"></i>Intake Workstation
         </h2>
-        <p class="text-muted">Process applications and manage land records efficiently</p>
+        <p class="text-muted">Process applications and manage land records </p>
     </div>
 
     <!-- THE WORKSTATION: Master Intake Form (Compact & Embedded) -->
@@ -52,13 +52,16 @@
                         <input 
                             type="text" 
                             name="full_name" 
+                            id="fullNameInput"
                             class="form-control form-control-sm @error('full_name') is-invalid @enderror" 
                             required 
                             placeholder="Full Name"
-                            value="{{ old('full_name') }}">
+                            value="{{ old('full_name') }}"
+                            autocomplete="off">
                         @error('full_name')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
+                        <small class="text-muted d-block mt-1" id="duplicateCheckStatus"></small>
                     </div>
 
                     <!-- Survey Number -->
@@ -172,6 +175,9 @@
                         @enderror
                         <small class="text-muted d-block mt-1">Today's date</small>
                     </div>
+
+                    <!-- Hidden field for linking to existing applicant -->
+                    <input type="hidden" name="existing_applicant_id" id="existingApplicantId" value="">
                 </div>
 
                 <!-- Action Buttons -->
@@ -183,14 +189,7 @@
                         <i class="fas fa-check-circle me-1"></i>Process Intake
                     </button>
                     
-                    <!-- Secondary Action Buttons (Ghost Style) -->
-                    <button type="button" class="btn btn-ghost btn-sm" onclick="openNewApplicantModal()">
-                        <i class="fas fa-user-plus me-1"></i>New Applicant
-                    </button>
-                    <button type="button" class="btn btn-ghost btn-sm" onclick="openAddLandRecordModal()">
-                        <i class="fas fa-map-marker-alt me-1"></i>Add Land Record
-                    </button>
-
+        
                     <!-- Loading Indicator -->
                     <span id="loadingIndicator" class="spinner-border spinner-border-sm ms-2" style="display: none;" role="status" aria-hidden="true"></span>
                 </div>
@@ -205,6 +204,13 @@
                 <i class="fas fa-folder-open me-2 text-primary"></i>Applications
             </h5>
             <div class="d-flex gap-2">
+                <select class="form-select form-select-sm" style="max-width: 150px;" id="statusFilter" onchange="filterApplicationsTable()">
+                    <option value="">All Status</option>
+                    <option value="Pending">Pending</option>
+                    <option value="In Process">In Process</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                </select>
                 <input 
                     type="text" 
                     id="tableSearchInput" 
@@ -309,6 +315,33 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Duplicate Applicant Warning -->
+<div class="modal fade" id="duplicateApplicantModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Duplicate Applicant Found</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>An applicant with a similar name already exists in the system:</p>
+                <div id="duplicateApplicantsList" class="list-group mb-3"></div>
+                <div class="alert alert-info" role="alert">
+                    <strong>What would you like to do?</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Link to the existing profile to avoid duplicate records</li>
+                        <li>Or create a new applicant profile if this is a different person</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Create New</button>
+                <button type="button" class="btn btn-primary" id="linkExistingBtn">Link to Existing</button>
             </div>
         </div>
     </div>
@@ -425,27 +458,21 @@ function showAlert(type, message) {
 // Filter the applications table
 function filterApplicationsTable() {
     const searchInput = document.getElementById('tableSearchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
     const rows = document.querySelectorAll('.application-row');
 
     rows.forEach(row => {
         const text = row.textContent.toLowerCase();
-        row.style.display = text.includes(searchInput) ? '' : 'none';
+        const statusBadge = row.querySelector('.status-badge');
+        const status = statusBadge ? statusBadge.textContent.trim() : '';
+
+        // Check both search text and status filter
+        const matchesSearch = text.includes(searchInput);
+        const matchesStatus = !statusFilter || status === statusFilter;
+
+        row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
     });
 }
-
-// Modal functions
-function openNewApplicantModal() {
-    new bootstrap.Modal(document.getElementById('newApplicantModal')).show();
-}
-
-function openAddLandRecordModal() {
-    new bootstrap.Modal(document.getElementById('addLandRecordModal')).show();
-}
-
-// ============================================
-// INPUT MASKING & AUTO-POPULATION
-// ============================================
-
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Set today's date in the date field
@@ -469,6 +496,33 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => applyInputMask(e), 10);
         });
     }
+
+    // Initialize duplicate applicant check
+    const fullNameInput = document.getElementById('fullNameInput');
+    let duplicateCheckTimeout;
+
+    if (fullNameInput) {
+        fullNameInput.addEventListener('blur', function() {
+            // Check for duplicates when user leaves the field
+            checkForDuplicateApplicant(this.value);
+        });
+    }
+
+    // Handle linking to existing applicant
+    document.getElementById('linkExistingBtn').addEventListener('click', function() {
+        // Get the selected applicant from the radio buttons
+        const selectedRadio = document.querySelector('input[name="selectedDuplicate"]:checked');
+        if (selectedRadio) {
+            const applicantId = selectedRadio.value;
+            document.getElementById('existingApplicantId').value = applicantId;
+            // Close the modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('duplicateApplicantModal'));
+            if (modal) {
+                modal.hide();
+            }
+            showAlert('success', 'Linked to existing applicant. Click "Process Intake" to continue.');
+        }
+    });
 });
 
 // Apply input mask to Survey Number (XXX-00-000000)
@@ -529,6 +583,88 @@ function loadNextTrackingNumber() {
                 trackingInput.value = 'CENRO-' + new Date().getFullYear() + '-001';
             });
     }
+}
+
+// Check for duplicate applicants
+function checkForDuplicateApplicant(fullName) {
+    const statusElement = document.getElementById('duplicateCheckStatus');
+    const existingApplicantIdField = document.getElementById('existingApplicantId');
+    
+    // Clear the field value if user changes the name
+    existingApplicantIdField.value = '';
+    
+    if (!fullName || fullName.trim().length < 2) {
+        statusElement.textContent = '';
+        return;
+    }
+
+    statusElement.textContent = 'Checking for duplicates...';
+    statusElement.className = 'text-muted d-block mt-1';
+
+    fetch('{{ route("applications.checkDuplicate") }}?full_name=' + encodeURIComponent(fullName), {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.exists && data.duplicates && data.duplicates.length > 0) {
+            statusElement.textContent = `⚠️ ${data.count} existing applicant(s) found with this name`;
+            statusElement.className = 'text-warning d-block mt-1 fw-bold';
+            
+            // Populate the modal with duplicate results
+            displayDuplicateModal(data.duplicates);
+            
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('duplicateApplicantModal'));
+            modal.show();
+        } else {
+            statusElement.textContent = 'No duplicates found - New applicant profile will be created';
+            statusElement.className = 'text-success d-block mt-1';
+        }
+    })
+    .catch(error => {
+        console.error('Error checking for duplicates:', error);
+        statusElement.textContent = '';
+    });
+}
+
+// Display duplicate applicants in the modal
+function displayDuplicateModal(duplicates) {
+    const listContainer = document.getElementById('duplicateApplicantsList');
+    listContainer.innerHTML = '';
+
+    duplicates.forEach((applicant, index) => {
+        const div = document.createElement('div');
+        div.className = 'list-group-item p-3';
+        
+        let contactInfo = '';
+        if (applicant.address) {
+            contactInfo += `<small class="text-muted">📍 ${applicant.address}</small><br>`;
+        }
+        if (applicant.contact_no) {
+            contactInfo += `<small class="text-muted">📞 ${applicant.contact_no}</small>`;
+        }
+
+        div.innerHTML = `
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="selectedDuplicate" id="duplicate${applicant.id}" value="${applicant.id}">
+                <label class="form-check-label w-100" for="duplicate${applicant.id}">
+                    <strong>${applicant.full_name}</strong>
+                    ${contactInfo}
+                </label>
+            </div>
+        `;
+        
+        listContainer.appendChild(div);
+
+        // Auto-select first option
+        if (index === 0) {
+            document.getElementById(`duplicate${applicant.id}`).checked = true;
+        }
+    });
 }
 
 console.log('✓ Intake Workstation Page Ready');

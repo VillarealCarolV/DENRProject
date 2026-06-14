@@ -15,7 +15,7 @@ class ReportsController extends Controller
     /**
      * Display a listing of reports with tabbed interface.
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
 
@@ -46,8 +46,11 @@ class ReportsController extends Controller
                 ->count();
 
             // Fetch data for Land Subdivision Report
-            $currentMonth = Carbon::now()->month;
-            $currentYear = Carbon::now()->year;
+            // Get month from request or default to current month
+            $selectedMonth = $request->input('month', Carbon::now()->format('Y-m'));
+            $monthDate = Carbon::createFromFormat('Y-m', $selectedMonth);
+            $currentMonth = $monthDate->month;
+            $currentYear = $monthDate->year;
 
             $subdividedApplications = Application::where('land_officer_id', $user->id)
                 ->with(['applicant', 'landRecord', 'statusHistories' => function($query) {
@@ -167,19 +170,22 @@ class ReportsController extends Controller
 
     /**
      * Display land subdivision and classification report.
-     * Shows total area subdivided/approved during the current month.
+     * Shows total area subdivided/approved during the selected month.
      */
-    public function landSubdivisionReport()
+    public function landSubdivisionReport(Request $request)
     {
         // Ensure user is a land officer
         if (Auth::user()->role !== 'land_officer') {
             abort(403, 'Unauthorized access');
         }
 
-        $currentMonth = Carbon::now()->month;
-        $currentYear = Carbon::now()->year;
+        // Get month from request or default to current month
+        $selectedMonth = $request->input('month', Carbon::now()->format('Y-m'));
+        $monthDate = Carbon::createFromFormat('Y-m', $selectedMonth);
+        $currentMonth = $monthDate->month;
+        $currentYear = $monthDate->year;
 
-        // Get approved applications for current officer in this month with subdivision data
+        // Get approved applications for current officer in selected month with subdivision data
         $subdividedApplications = Application::where('land_officer_id', Auth::id())
             ->with(['applicant', 'landRecord', 'statusHistories' => function($query) {
                 $query->latest()->limit(1);
@@ -209,7 +215,7 @@ class ReportsController extends Controller
                 ];
             });
 
-        // Get monthly trend for this year (all approved subdivisions)
+        // Get monthly trend for selected year (all approved subdivisions)
         $monthlyTrend = [];
         for ($month = 1; $month <= 12; $month++) {
             $areaThisMonth = Application::where('land_officer_id', Auth::id())
@@ -231,5 +237,102 @@ class ReportsController extends Controller
             'classificationBreakdown',
             'monthlyTrend'
         ));
+    }
+
+    /**
+     * Export pending backlog report for land officer
+     */
+    public function exportPendingBacklog(Request $request)
+    {
+        // Ensure user is a land officer
+        if (Auth::user()->role !== 'land_officer') {
+            abort(403, 'Unauthorized access');
+        }
+
+        $format = $request->query('format', 'csv');
+
+        // Get applications assigned to current user with pending status
+        $pendingApplications = Application::where('land_officer_id', Auth::id())
+            ->with([
+                'applicant',
+                'landRecord',
+                'statusHistories' => function($query) {
+                    $query->latest()->limit(1);
+                }
+            ])
+            ->whereHas('statusHistories', function($query) {
+                $query->where('status', 'Pending');
+            })
+            ->orderBy('date_received', 'asc')
+            ->get();
+
+        switch ($format) {
+            case 'excel':
+                return $this->exportExcel($pendingApplications);
+            case 'pdf':
+                return $this->exportPdf($pendingApplications);
+            default:
+                return $this->exportCsv($pendingApplications);
+        }
+    }
+
+    /**
+     * Export to CSV format
+     */
+    private function exportCsv($applications)
+    {
+        $fileName = 'pending_backlog_' . now()->format('Y-m-d_H-i-s') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"$fileName\"",
+        ];
+
+        $callback = function() use ($applications) {
+            $file = fopen('php://output', 'w');
+            
+            // Header row
+            fputcsv($file, ['Tracking No.', 'Applicant Name', 'Survey No.', 'Date Received', 'Lot Type', 'Days Pending']);
+
+            // Data rows
+            foreach ($applications as $app) {
+                $daysPending = (int)$app->date_received->diffInDays(now());
+                
+                fputcsv($file, [
+                    $app->tracking_no,
+                    $app->applicant->full_name ?? 'N/A',
+                    $app->landRecord->survey_no ?? 'N/A',
+                    $app->date_received->format('Y-m-d'),
+                    $app->lot_type ?? '-',
+                    $daysPending
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Export to Excel format
+     */
+    private function exportExcel($applications)
+    {
+        $fileName = 'pending_backlog_' . now()->format('Y-m-d_H-i-s') . '.xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\ApplicationsExport($applications), $fileName);
+    }
+
+    /**
+     * Export to PDF format
+     */
+    private function exportPdf($applications)
+    {
+        $fileName = 'pending_backlog_' . now()->format('Y-m-d_H-i-s') . '.pdf';
+        $html = view('exports.applications-pdf', compact('applications'))->render();
+        
+        return \PDF::loadHTML($html)
+                    ->setPaper('a4', 'landscape')
+                    ->download($fileName);
     }
 }

@@ -11,8 +11,16 @@ use App\Http\Controllers\SubdivisionController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
+    // On fresh login, redirect based on user role
+    if (Auth::check()) {
+        $userRole = trim(Auth::user()->role ?? '');
+        if ($userRole === 'land_officer') {
+            return redirect('/processing-queue');
+        }
+    }
     return redirect('/dashboard');
 });
 
@@ -28,8 +36,14 @@ Route::middleware('auth')->group(function () {
 
     // Export routes MUST be defined BEFORE resource routes to avoid route conflicts
     Route::get('applications/export', [ApplicationController::class, 'export'])->name('applications.export');
+    Route::get('processing-queue/export', [ApplicationController::class, 'exportProcessingQueue'])->name('processing-queue.export');
     Route::get('applicants/export', [ApplicantController::class, 'export'])->name('applicants.export');
     Route::get('land-records/export', [LandRecordController::class, 'export'])->name('land-records.export');
+    Route::get('reports/pending-backlog/export', [ReportsController::class, 'exportPendingBacklog'])->name('reports.exportPendingBacklog');
+    
+    // Bulk delete routes
+    Route::post('applicants/bulk-delete', [ApplicantController::class, 'bulkDelete'])->name('applicants.bulkDelete');
+    Route::post('land-records/bulk-delete', [LandRecordController::class, 'bulkDelete'])->name('land-records.bulkDelete');
 
     // API endpoint for notification modal - get application details
     Route::get('applications/{application}/details', [ApplicationController::class, 'getDetails'])->name('applications.details');
@@ -43,6 +57,7 @@ Route::middleware('auth')->group(function () {
     Route::get('applications/workstation/view', [ApplicationController::class, 'workstation'])->name('applications.workstation');
     Route::get('applications/table-data', [ApplicationController::class, 'getTableData'])->name('applications.getTableData');
     Route::get('applications/next-tracking-number', [ApplicationController::class, 'getNextTrackingNumber'])->name('applications.nextTrackingNumber');
+    Route::get('api/applications/check-duplicate-applicant', [ApplicationController::class, 'checkDuplicateApplicant'])->name('applications.checkDuplicate');
 
     // Processing Queue - Task/Application review workstation
     Route::get('processing-queue', [ApplicationController::class, 'processingQueue'])->name('processing-queue');

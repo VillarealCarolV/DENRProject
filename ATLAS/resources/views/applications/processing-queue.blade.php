@@ -13,11 +13,17 @@
                 <!-- Left Side: Primary & Secondary Actions -->
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                     
-                    <!-- Primary Action: New Application -->
-                    <a href="{{ route('applications.masterCreate') }}" 
-                       style="background: #3b82f6; color: white; border: none; padding: 6px 12px; font-size: 0.85rem; border-radius: 4px; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 6px; font-weight: 500; transition: background-color 0.15s ease;">
-                        <i class="fas fa-plus" style="font-size: 0.75rem;"></i> New Application
-                    </a>
+                    <!-- Export Button -->
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm fw-bold" type="button" onclick="document.getElementById('processingQueueExportMenu').classList.toggle('show')">
+                            <i class="fas fa-download me-2"></i> Export <i class="fas fa-caret-down ms-1"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" id="processingQueueExportMenu" style="position: absolute; right: 0;">
+                            <li><a class="dropdown-item" href="{{ route('processing-queue.export', ['format' => 'csv', 'status' => request('status'), 'sort' => request('sort')]) }}"><i class="fas fa-file-csv me-2 text-success"></i>CSV</a></li>
+                            <li><a class="dropdown-item" href="{{ route('processing-queue.export', ['format' => 'excel', 'status' => request('status'), 'sort' => request('sort')]) }}"><i class="fas fa-file-excel me-2 text-success"></i>Excel</a></li>
+                            <li><a class="dropdown-item" href="{{ route('processing-queue.export', ['format' => 'pdf', 'status' => request('status'), 'sort' => request('sort')]) }}"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
+                        </ul>
+                    </div>
 
                     <!-- Secondary Actions -->
                     <button onclick="location.reload()" 

@@ -156,6 +156,68 @@ class ApplicantController extends Controller
     }
 
     /**
+     * Bulk delete applicants
+     */
+    public function bulkDelete(Request $request)
+    {
+        // AUTHORIZATION: Only admin and records_officer roles can delete applicants
+        $allowedRoles = ['admin', 'records_officer'];
+        if (!in_array(Auth::user()->role, $allowedRoles)) {
+            $message = 'Unauthorized: You do not have permission to delete applicants.';
+            return response()->json(['success' => false, 'message' => $message, 'error' => $message], 403);
+        }
+
+        // Validate that IDs array is provided
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|integer|exists:applicants,id'
+        ]);
+
+        try {
+            $ids = $request->input('ids');
+            $count = count($ids);
+
+            // Log bulk deletion attempt
+            \Log::info('Bulk deleting applicants', [
+                'count' => $count,
+                'ids' => $ids,
+                'deleted_by' => Auth::user()->name,
+                'deleted_by_id' => Auth::id(),
+                'timestamp' => now()
+            ]);
+
+            // Delete applicants
+            $deleted = Applicant::whereIn('id', $ids)->delete();
+
+            \Log::info('Applicants successfully bulk deleted', [
+                'count' => $deleted,
+                'ids' => $ids
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "$deleted applicant(s) deleted successfully",
+                'count' => $deleted
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error bulk deleting applicants', [
+                'ids' => $request->input('ids'),
+                'error' => $e->getMessage(),
+                'deleted_by' => Auth::user()->name
+            ]);
+
+            $message = 'An error occurred while deleting applicants: ' . $e->getMessage();
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Export applicants in multiple formats (CSV, Excel, PDF)
      */
     public function export(Request $request)

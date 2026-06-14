@@ -91,7 +91,7 @@
                     <tbody>
                         @foreach($pendingApplications as $application)
                             @php
-                                $daysPending = $application->date_received->diffInDays(now());
+                                $daysPending = (int)$application->date_received->diffInDays(now());
                                 $urgency = $daysPending > 30 ? 'danger' : ($daysPending > 14 ? 'warning' : 'info');
                             @endphp
                             <tr>
@@ -99,7 +99,7 @@
                                     <strong>{{ $application->tracking_no }}</strong>
                                 </td>
                                 <td class="px-4 py-3">
-                                    {{ $application->applicant->name ?? 'N/A' }}
+                                    {{ $application->applicant->full_name ?? 'N/A' }}
                                 </td>
                                 <td class="px-4 py-3">
                                     {{ $application->landRecord->survey_no ?? 'N/A' }}

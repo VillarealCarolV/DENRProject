@@ -5,14 +5,14 @@
 @if(auth()->user()->role !== 'land_management_officer' && auth()->user()->role !== 'processing')
 <div class="mb-4 p-3 bg-light border border-light rounded-3 shadow-sm">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <div>
+        {{-- <div>
             <h6 class="mb-0 text-muted fw-bold"><i class="fa-solid fa-plus-circle me-2 text-warning"></i>Create New</h6>
-        </div>
+        </div> --}}
         <div class="d-flex gap-2 flex-wrap">
             
-                <button class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#newApplicationModal" title="Create a new application">
+                {{-- <button class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#newApplicationModal" title="Create a new application">
                     <i class="fas fa-file-alt me-1"></i> New Application
-                </button>
+                </button> --}}
             @endif
             @if(auth()->user()->role === 'records_officer' || auth()->user()->role === 'admin' || auth()->user()->role === 'input')
                 <button class="btn btn-outline-success btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#newLandRecordModal" title="Add a new land record">
@@ -45,7 +45,7 @@
         </div>
     </div>
 
-    <!-- Stat 2: Approved This Month -->
+    <!-- Stat 2: Approved (All-Time) -->
     <div class="col-6 col-md-3">
         <div class="card border-0 shadow-sm">
             <div class="card-body p-3">

@@ -82,15 +82,17 @@
                 </li>
             @endif
 
-            <!-- Reports -->
-            <li class="nav-item">
-                <a href="{{ route('reports.index') }}" 
-                   class="nav-link sidebar-link {{ str_contains($active, 'reports') ? 'active' : '' }}"
-                   title="Reports">
-                    <i class="bi bi-bar-chart"></i>
-                    <span class="nav-text">Reports</span>
-                </a>
-            </li>
+            <!-- Reports (Not for Records Officers) -->
+            @if(auth()->user()->role !== 'records_officer')
+                <li class="nav-item">
+                    <a href="{{ route('reports.index') }}" 
+                       class="nav-link sidebar-link {{ str_contains($active, 'reports') ? 'active' : '' }}"
+                       title="Reports">
+                        <i class="bi bi-bar-chart"></i>
+                        <span class="nav-text">Reports</span>
+                    </a>
+                </li>
+            @endif
         </ul>
     </nav>
 

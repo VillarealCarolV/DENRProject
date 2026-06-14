@@ -15,6 +15,39 @@
     </div>
 </div>
 
+<!-- Filter Section -->
+<div class="card border-0 mb-4">
+    <div class="card-body">
+        <div class="row align-items-end">
+            <div class="col-md-4">
+                <label class="form-label fw-bold text-secondary">Filter by Month</label>
+                <form method="GET" action="{{ route('reports.landSubdivisionReport') }}" class="d-flex gap-2">
+                    <input 
+                        type="month" 
+                        name="month" 
+                        id="monthFilter"
+                        class="form-control form-control-sm"
+                        value="{{ request('month', now()->format('Y-m')) }}">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                    @if(request('month'))
+                        <a href="{{ route('reports.landSubdivisionReport') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-x"></i> Reset
+                        </a>
+                    @endif
+                </form>
+            </div>
+            <div class="col-md-8 text-end">
+                <div class="alert alert-info mb-0 py-2">
+                    <strong>Total Records:</strong> <span class="badge bg-primary">{{ $subdividedApplications->count() }}</span>
+                    <strong class="ms-3">Approved This Month:</strong> <span class="badge bg-success">{{ $totalApplicationsApproved }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Key Statistics -->
 <div class="row mb-4">
     <div class="col-md-3 mb-3">
@@ -173,7 +206,7 @@
                                     <strong>{{ $application->tracking_no }}</strong>
                                 </td>
                                 <td class="px-4 py-3">
-                                    {{ $application->applicant->name ?? 'N/A' }}
+                                    {{ $application->applicant->full_name ?? 'N/A' }}
                                 </td>
                                 <td class="px-4 py-3">
                                     {{ $application->landRecord->survey_no ?? 'N/A' }}

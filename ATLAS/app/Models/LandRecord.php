@@ -15,5 +15,5 @@ use Illuminate\Database\Eloquent\Model;
  */
 class LandRecord extends Model
 {
-    protected $fillable = ['survey_no', 'total_area', 'location', 'is_subdivided'];
+    protected $fillable = ['survey_no', 'remarks', 'total_area', 'location', 'is_subdivided'];
 }

@@ -93,6 +93,7 @@ class ApplicationController extends Controller
             'full_name' => 'required|string|max:255',
             'address' => 'nullable|string',
             'contact_no' => 'nullable|string',
+            'existing_applicant_id' => 'nullable|exists:applicants,id',
             
             // Land Data
             'survey_no' => ['required', 'string', 'unique:land_records,survey_no', 'regex:/^[A-Za-z]{3}-\d{2,}-\d{4,}$/'],
@@ -108,16 +109,33 @@ class ApplicationController extends Controller
         $application = null;
         DB::transaction(function () use ($validated, &$application) {
             
-            // A. Save the Applicant
-            $applicant = Applicant::create([
-                'full_name' => $validated['full_name'],
-                'address' => $validated['address'],
-                'contact_no' => $validated['contact_no'],
-            ]);
+            // A. Get or create the Applicant
+            if (!empty($validated['existing_applicant_id'])) {
+                // Link to existing applicant
+                $applicant = Applicant::findOrFail($validated['existing_applicant_id']);
+            } else {
+                // Create new applicant
+                $applicant = Applicant::create([
+                    'full_name' => $validated['full_name'],
+                    'address' => $validated['address'],
+                    'contact_no' => $validated['contact_no'],
+                ]);
+            }
 
-            // B. Save the Land Record
+            // B. Determine lot letter only if linking to existing applicant
+            $surveyNo = $validated['survey_no'];
+            if (!empty($validated['existing_applicant_id'])) {
+                // Add letter when linking to existing applicant (existing account scenario)
+                $applicantLandCount = $applicant->applications()->count();
+                // Convert count to letter: 0->A, 1->B, 2->C, etc.
+                $lotLetter = chr(65 + $applicantLandCount);
+                $surveyNo = $validated['survey_no'] . '(' . $lotLetter . ')';
+            }
+            // For new applicants, survey_no remains clean without any letter
+            
+            // Save the Land Record
             $land = LandRecord::create([
-                'survey_no' => $validated['survey_no'],
+                'survey_no' => $surveyNo,
                 'total_area' => $validated['total_area'],
                 'location' => $validated['location'],
             ]);
@@ -151,12 +169,12 @@ class ApplicationController extends Controller
         if ($request->wantsJson() || $request->header('Accept') === 'application/json') {
             return response()->json([
                 'success' => true,
-                'message' => 'Master Intake Complete: Applicant, Land, and Application successfully linked and saved!',
+                'message' => 'Applicant, Land, and Application successfully linked and saved!',
                 'application' => $application
             ], 201);
         }
 
-        return back()->with('success', 'Master Intake Complete: Applicant, Land, and Application successfully linked and saved!');
+        return back()->with('success', 'Applicant, Land, and Application successfully linked and saved!');
     }
 
     /**
@@ -757,8 +775,9 @@ for ($col = 1; $col <= count($headings); $col++) {
     public function processingQueue(Request $request)
     {
         // AUTHORIZATION: Only Land Officers can access the Processing Queue
-        if (Auth::user()->role !== 'land_officer') {
-            abort(403, 'Unauthorized: Only Land Officers can access the Processing Queue.');
+        $userRole = strtolower(trim(Auth::user()->role ?? ''));
+        if ($userRole !== 'land_officer') {
+            abort(403, 'Unauthorized: Only Land Officers can access the Processing Queue. Your role: ' . $userRole);
         }
 
         $query = Application::with(['applicant', 'landRecord', 'statusHistories']);
@@ -798,6 +817,64 @@ for ($col = 1; $col <= count($headings); $col++) {
         $applications = $query->paginate(25);
 
         return view('applications.processing-queue', compact('applications'));
+    }
+
+    /**
+     * Export processing queue applications (filtered data)
+     */
+    public function exportProcessingQueue(Request $request)
+    {
+        // AUTHORIZATION: Only Land Officers can access the Processing Queue
+        $userRole = strtolower(trim(Auth::user()->role ?? ''));
+        if ($userRole !== 'land_officer') {
+            abort(403, 'Unauthorized: Only Land Officers can access the Processing Queue.');
+        }
+
+        $format = $request->query('format', 'csv');
+
+        $query = Application::with(['applicant', 'landRecord', 'statusHistories']);
+
+        // Apply same filters as processingQueue method
+        if ($request->has('status') && !empty($request->status)) {
+            $status = $request->status;
+            $query->whereHas('statusHistories', function ($q) use ($status) {
+                $q->where('status', $status)
+                  ->where('id', function ($subquery) {
+                      $subquery->selectRaw('MAX(id)')
+                              ->from('status_histories')
+                              ->whereColumn('status_histories.application_id', 'applications.id');
+                  });
+            });
+        } else {
+            // Default: show pending and in-process applications
+            $query->whereHas('statusHistories', function ($q) {
+                $q->where('status', '!=', 'Approved')
+                  ->where('status', '!=', 'Rejected')
+                  ->where('id', function ($subquery) {
+                      $subquery->selectRaw('MAX(id)')
+                              ->from('status_histories')
+                              ->whereColumn('status_histories.application_id', 'applications.id');
+                  });
+            });
+        }
+
+        // Sort by oldest first (date_received)
+        if ($request->has('sort') && $request->sort === 'newest') {
+            $query->latest('date_received');
+        } else {
+            $query->oldest('date_received');
+        }
+
+        $applications = $query->get(); // Get all matching records without pagination for export
+
+        switch ($format) {
+            case 'excel':
+                return $this->exportExcel($applications);
+            case 'pdf':
+                return $this->exportPdf($applications);
+            default:
+                return $this->exportCsv($applications);
+        }
     }
 
     /**
@@ -995,5 +1072,33 @@ for ($col = 1; $col <= count($headings); $col++) {
                 'message' => 'Failed to save assessment: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Check for duplicate applicants by name
+     * Used to prevent creating duplicate applicant profiles
+     */
+    public function checkDuplicateApplicant(Request $request)
+    {
+        $fullName = trim($request->input('full_name', ''));
+        
+        if (empty($fullName)) {
+            return response()->json(['exists' => false]);
+        }
+
+        // Search for applicants with similar names (case-insensitive, exact match)
+        $duplicates = Applicant::whereRaw('LOWER(full_name) = ?', [strtolower($fullName)])
+            ->select('id', 'full_name', 'address', 'contact_no')
+            ->get();
+
+        if ($duplicates->isNotEmpty()) {
+            return response()->json([
+                'exists' => true,
+                'duplicates' => $duplicates,
+                'count' => $duplicates->count()
+            ]);
+        }
+
+        return response()->json(['exists' => false]);
     }
 }

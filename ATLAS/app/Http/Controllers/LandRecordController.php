@@ -107,6 +107,61 @@ class LandRecordController extends Controller
     }
 
     /**
+     * Bulk delete land records
+     */
+    public function bulkDelete(Request $request)
+    {
+        // Validate that IDs array is provided
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|integer|exists:land_records,id'
+        ]);
+
+        try {
+            $ids = $request->input('ids');
+            $count = count($ids);
+
+            // Log bulk deletion attempt
+            \Log::info('Bulk deleting land records', [
+                'count' => $count,
+                'ids' => $ids,
+                'deleted_by' => auth()->user()->name,
+                'deleted_by_id' => auth()->id(),
+                'timestamp' => now()
+            ]);
+
+            // Delete land records
+            $deleted = LandRecord::whereIn('id', $ids)->delete();
+
+            \Log::info('Land records successfully bulk deleted', [
+                'count' => $deleted,
+                'ids' => $ids
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "$deleted land record(s) deleted successfully",
+                'count' => $deleted
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error bulk deleting land records', [
+                'ids' => $request->input('ids'),
+                'error' => $e->getMessage(),
+                'deleted_by' => auth()->user()->name
+            ]);
+
+            $message = 'An error occurred while deleting land records: ' . $e->getMessage();
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Export land records in multiple formats (CSV, Excel, PDF)
      */
     public function export(Request $request)

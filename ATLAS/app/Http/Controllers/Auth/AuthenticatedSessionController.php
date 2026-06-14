@@ -30,18 +30,19 @@ class AuthenticatedSessionController extends Controller
 
         // Route users to their respective workstations based on role
         $user = Auth::user();
+        $userRole = strtolower(trim($user->role ?? ''));
         
-        // Records Officer goes to the Intake Workstation
-        if ($user->role === 'records_officer') {
-            return redirect()->intended(route('applications.index', absolute: false));
+        // Records Officer forcefully goes to the Intake Workstation
+        if ($userRole === 'records_officer') {
+            return redirect()->route('applications.index');
         }
         
-        // Land Officer goes to the Processing Queue
-        if ($user->role === 'land_officer') {
-            return redirect()->intended(route('processing-queue', absolute: false));
+        // Land Officer forcefully goes to the Processing Queue
+        if ($userRole === 'land_officer') {
+            return redirect()->route('processing-queue');
         }
 
-        // Others (admin, processing) go to the Dashboard
+        // Others (admin, processing) go to the Dashboard, or wherever they originally intended to go
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

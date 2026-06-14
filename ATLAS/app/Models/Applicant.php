@@ -15,4 +15,12 @@ use Illuminate\Database\Eloquent\Model;
 class Applicant extends Model
 {
     protected $fillable = ['full_name', 'address', 'contact_no'];
+
+    /**
+     * Get the applications associated with the applicant.
+     */
+    public function applications()
+    {
+        return $this->hasMany(Application::class, 'applicant_id');
+    }
 }
