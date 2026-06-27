@@ -353,16 +353,43 @@
                         </tr>
                         @if($application->lot_type === 'subdivision')
                             <tr>
-                                <td class="label">New Lot No.</td>
-                                <td class="value">{{ $application->new_lot_number ?? 'N/A' }}</td>
+                                <td class="label" colspan="2" style="font-weight: 600; background: #f9fafb; padding: 8px 12px;">
+                                    <i class="fas fa-expand"></i> Subdivision Details
+                                </td>
                             </tr>
                             <tr>
-                                <td class="label">Subdivided Area</td>
-                                <td class="value"><span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8rem; display: inline-block;">{{ number_format($application->subdivided_area ?? 0, 2) }} sqm</span></td>
+                                <td class="label">Mother Lot Total</td>
+                                <td class="value">{{ number_format($application->landRecord->total_area, 2) }} sqm</td>
                             </tr>
+                            <tr>
+                                <td class="label">Number of Lots</td>
+                                <td class="value">{{ $application->landRecord->children->count() }}</td>
+                            </tr>
+                            @if($application->landRecord->children->count() > 0)
+                                @foreach($application->landRecord->children as $index => $childLot)
+                                <tr>
+                                    <td class="label" style="color: #6b7280;">
+                                        @php
+                                            $letters = 'ABCDEFGHIJ';
+                                            echo 'Lot ' . ($letters[$index] ?? 'Unknown');
+                                        @endphp
+                                    </td>
+                                    <td class="value">
+                                        <div>
+                                            <strong>{{ $childLot->survey_no }}</strong>
+                                            <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8rem; display: inline-block; margin-left: 8px;">{{ number_format($childLot->total_area, 2) }} sqm</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                                <tr>
+                                    <td class="label">Total Subdivided</td>
+                                    <td class="value">{{ number_format($application->landRecord->children->sum('total_area'), 2) }} sqm</td>
+                                </tr>
+                            @endif
                             <tr>
                                 <td class="label">Remaining</td>
-                                <td class="value"><span style="background: #dcfce7; color: #15803d; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8rem; display: inline-block;">{{ number_format($application->remaining_area ?? ($application->landRecord->total_area - ($application->subdivided_area ?? 0)), 2) }} sqm</span></td>
+                                <td class="value"><span style="background: #dcfce7; color: #15803d; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8rem; display: inline-block;">{{ number_format($application->landRecord->total_area - $application->landRecord->children->sum('total_area'), 2) }} sqm</span></td>
                             </tr>
                         @endif
                         <tr>

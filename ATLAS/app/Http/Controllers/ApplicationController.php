@@ -13,6 +13,7 @@ use App\Models\Application;
 use App\Models\StatusHistory;
 use App\Models\Applicant;
 use App\Models\LandRecord;
+use App\Models\Subdivision;
 use App\Models\User;
 use App\Notifications\NewApplicationNotification;
 use Illuminate\Support\Facades\Notification;
@@ -182,7 +183,7 @@ class ApplicationController extends Controller
      */
     public function show(string $id)
     {
-        $application = Application::with(['applicant', 'landRecord', 'statusHistories'])->findOrFail($id);
+        $application = Application::with(['applicant', 'landRecord.children', 'statusHistories'])->findOrFail($id);
         return view('applications.show', compact('application'));
     }
 
@@ -197,7 +198,7 @@ class ApplicationController extends Controller
             abort(403, 'Unauthorized: Only Land Management Officers can assess applications.');
         }
 
-        $application = Application::with(['applicant', 'landRecord', 'statusHistories'])->findOrFail($id);
+        $application = Application::with(['applicant', 'landRecord.children', 'statusHistories'])->findOrFail($id);
         return view('applications.edit', compact('application'));
     }
 
@@ -977,53 +978,266 @@ for ($col = 1; $col <= count($headings); $col++) {
         }
 
         try {
-            \Log::info('Processing application', [
-                'app_id' => $id,
-                'request_data' => $request->all(),
-                'user' => Auth::user()->name
+            \Log::info('=== PROCESSING APPLICATION STARTED ===', [
+                'application_id' => $id,
+                'raw_request_data' => $request->all(),
+                'user_id' => Auth::id(),
+                'user_name' => Auth::user()->name
             ]);
 
-            // Validate request
-            $validated = $request->validate([
+            // Extract input values
+            $lotClassification = $request->input('lot_classification');
+            $subdivisionLots = $request->input('subdivision_lots', []);
+            
+            \Log::info('Step 1: Input values extracted', [
+                'lot_classification_received' => $lotClassification,
+                'subdivision_lots_count' => count($subdivisionLots),
+                'subdivision_lots_data' => json_encode($subdivisionLots)
+            ]);
+
+            // Build validation rules - lot_classification can be null, but must be in list if provided
+            $rules = [
                 'application_id' => 'required|exists:applications,id',
                 'lot_classification' => 'nullable|in:existing,subdivision',
-                'subdivision_lot_number' => 'nullable|string|max:255',
+                'number_of_lots' => 'nullable|integer|min:2|max:10',
                 'status' => 'required|in:Pending,In Process,Approved,Rejected',
                 'patent_type' => 'nullable|string|max:255',
                 'patent_details' => 'nullable|string|max:1000',
                 'remarks' => 'required|string|min:5'
+            ];
+
+            // If subdivision is selected, subdivision_lots is REQUIRED and must be a valid array
+            if ($lotClassification === 'subdivision') {
+                $rules['subdivision_lots'] = 'required|array|min:1';
+                $rules['subdivision_lots.*.designation'] = 'required|string|max:1';
+                $rules['subdivision_lots.*.area'] = 'required|numeric|min:0.01';
+                
+                \Log::info('Step 2a: Validation rules set to REQUIRE subdivision_lots', [
+                    'lot_classification' => 'subdivision'
+                ]);
+            } else {
+                $rules['subdivision_lots'] = 'nullable|array';
+                $rules['subdivision_lots.*.designation'] = 'nullable|string|max:1';
+                $rules['subdivision_lots.*.area'] = 'nullable|numeric|min:0.01';
+                
+                \Log::info('Step 2b: Validation rules set to NULLABLE subdivision_lots', [
+                    'lot_classification' => $lotClassification
+                ]);
+            }
+
+            // VALIDATE
+            $validated = $request->validate($rules);
+
+            \Log::info('Step 3: Validation PASSED', [
+                'validated_lot_classification' => $validated['lot_classification'] ?? 'null',
+                'validated_subdivision_lots_count' => count($validated['subdivision_lots'] ?? []),
+                'validated_subdivision_lots' => json_encode($validated['subdivision_lots'] ?? [])
             ]);
 
-            $application = Application::findOrFail($validated['application_id']);
+            // Find the application
+            $application = Application::with('landRecord')->findOrFail($validated['application_id']);
 
-            // Prepare update data
+            \Log::info('Step 4: Application found', [
+                'application_id' => $application->id,
+                'tracking_no' => $application->tracking_no,
+                'land_record_id' => $application->land_record_id,
+                'parent_survey_no' => $application->landRecord->survey_no ?? 'NULL'
+            ]);
+
+            // Prepare update data for application
             $updateData = [
                 'land_officer_remarks' => $validated['remarks'],
                 'land_officer_id' => Auth::id(),
                 'assessed_at' => now(),
             ];
 
-            // Only add patent_type if provided (not required)
             if (!empty($validated['patent_type'])) {
                 $updateData['patent_type'] = $validated['patent_type'];
             }
 
-            // Only add patent_details if provided; otherwise let DB use default 'Patent'
             if (!empty($validated['patent_details'])) {
                 $updateData['patent_details'] = $validated['patent_details'];
             }
 
-            // Handle lot classification if provided
-            if ($validated['lot_classification']) {
-                $updateData['lot_type'] = $validated['lot_classification'] === 'subdivision' ? 'subdivision' : 'existing_lot';
-                
-                if ($validated['lot_classification'] === 'subdivision') {
-                    $updateData['new_lot_number'] = $validated['subdivision_lot_number'] ?? null;
+            // CRITICAL: Handle subdivision processing BEFORE updating application
+            if ($validated['lot_classification'] === 'subdivision') {
+                \Log::info('Step 5: SUBDIVISION PROCESSING STARTED', [
+                    'parent_lot_id' => $application->land_record_id,
+                    'parent_survey_no' => $application->landRecord->survey_no,
+                    'subdivision_lots_array_count' => count($validated['subdivision_lots'] ?? [])
+                ]);
+
+                // Get the subdivision lots array
+                $subdivisionLotsArray = $validated['subdivision_lots'] ?? [];
+
+                // LOG THE EXACT ARRAY STRUCTURE
+                \Log::info('Step 5-Debug: Full subdivision lots array received', [
+                    'array_dump' => json_encode($subdivisionLotsArray),
+                    'array_keys' => array_keys($subdivisionLotsArray),
+                    'item_count' => count($subdivisionLotsArray)
+                ]);
+
+                if (!empty($subdivisionLotsArray)) {
+                    // Delete existing subdivisions for this parent lot
+                    $deletedCount = Subdivision::where('parent_lot_id', $application->land_record_id)->delete();
+                    
+                    \Log::info('Step 5a: Deleted existing subdivisions', [
+                        'parent_lot_id' => $application->land_record_id,
+                        'records_deleted' => $deletedCount
+                    ]);
+
+                    // Use database transaction to ensure atomicity
+                    DB::beginTransaction();
+                    
+                    try {
+                        // Loop through each child lot and create records
+                        $lotsCreatedCount = 0;
+                        $linksCreatedCount = 0;
+                        
+                        foreach ($subdivisionLotsArray as $index => $childData) {
+                            \Log::info('Step 5b-Iteration-' . ($index + 1) . ': STARTING ITERATION', [
+                                'index' => $index,
+                                'childData_dump' => json_encode($childData),
+                                'designation_key_exists' => isset($childData['designation']),
+                                'area_key_exists' => isset($childData['area']),
+                                'designation_value' => $childData['designation'] ?? 'NOT_SET',
+                                'area_value' => $childData['area'] ?? 'NOT_SET'
+                            ]);
+
+                            $designation = trim($childData['designation'] ?? chr(65 + $index));
+                            $area = floatval($childData['area'] ?? 0);
+
+                            \Log::info('Step 5b-Iteration-' . ($index + 1) . ': Values extracted', [
+                                'array_index' => $index,
+                                'designation_extracted' => $designation,
+                                'area_extracted' => $area
+                            ]);
+
+                            // CREATE CHILD LAND RECORD
+                            $newSurveyNo = $application->landRecord->survey_no . '(' . $designation . ')';
+                            
+                            \Log::info('Step 5b-Iteration-' . ($index + 1) . ': About to create LandRecord', [
+                                'new_survey_no' => $newSurveyNo,
+                                'total_area' => $area,
+                                'location' => $application->landRecord->location ?? 'NULL'
+                            ]);
+                            
+                            $childLot = LandRecord::create([
+                                'survey_no' => $newSurveyNo,
+                                'total_area' => $area,
+                                'location' => $application->landRecord->location ?? '',
+                                'is_subdivided' => false
+                            ]);
+
+                            $lotsCreatedCount++;
+
+                            \Log::info('Step 5b-Iteration-' . ($index + 1) . ': Child LandRecord CREATED', [
+                                'new_land_record_id' => $childLot->id,
+                                'new_survey_no' => $childLot->survey_no,
+                                'new_total_area' => $childLot->total_area,
+                                'lots_created_so_far' => $lotsCreatedCount
+                            ]);
+
+                            // CREATE SUBDIVISION LINK using raw INSERT
+                            $now = now();
+                            
+                            \Log::info('Step 5b-Iteration-' . ($index + 1) . ': About to insert subdivision link', [
+                                'parent_lot_id' => $application->land_record_id,
+                                'child_lot_id' => $childLot->id,
+                                'split_date' => $now->toDateString()
+                            ]);
+
+                            $insertResult = DB::table('subdivisions')->insert([
+                                'parent_lot_id' => $application->land_record_id,
+                                'child_lot_id' => $childLot->id,
+                                'split_date' => $now->toDateString(),
+                                'created_at' => $now,
+                                'updated_at' => $now
+                            ]);
+
+                            \Log::info('Step 5b-Iteration-' . ($index + 1) . ': Insert query result', [
+                                'insert_result' => $insertResult,
+                                'insert_result_type' => gettype($insertResult)
+                            ]);
+
+                            if ($insertResult === true) {
+                                $linksCreatedCount++;
+                                \Log::info('Step 5b-Iteration-' . ($index + 1) . ': Subdivision LINK CREATED', [
+                                    'subdivision_link_id' => 'just_inserted',
+                                    'parent_lot_id' => $application->land_record_id,
+                                    'child_lot_id' => $childLot->id,
+                                    'links_created_so_far' => $linksCreatedCount
+                                ]);
+                            } else {
+                                \Log::error('Step 5b-Iteration-' . ($index + 1) . ': Subdivision LINK INSERT RETURNED FALSE', [
+                                    'parent_lot_id' => $application->land_record_id,
+                                    'child_lot_id' => $childLot->id,
+                                    'insert_result' => $insertResult
+                                ]);
+                                throw new \Exception('Subdivision insert returned false for index ' . $index);
+                            }
+                        }
+
+                        \Log::info('Step 5b-Final: Loop completed successfully', [
+                            'total_lots_created' => $lotsCreatedCount,
+                            'total_links_created' => $linksCreatedCount,
+                            'array_count' => count($subdivisionLotsArray)
+                        ]);
+
+                        // Mark parent lot as subdivided
+                        $application->landRecord->update(['is_subdivided' => true]);
+
+                        \Log::info('Step 5c: Parent lot marked as subdivided', [
+                            'parent_lot_id' => $application->land_record_id,
+                            'is_subdivided' => true
+                        ]);
+
+                        // Set lot_type in application update
+                        $updateData['lot_type'] = 'subdivision';
+
+                        \Log::info('Step 5d: SUBDIVISION PROCESSING COMPLETED', [
+                            'total_children_created' => $lotsCreatedCount,
+                            'parent_lot_id' => $application->land_record_id
+                        ]);
+
+                        // Commit transaction
+                        DB::commit();
+
+                    } catch (\Exception $e) {
+                        DB::rollback();
+                        
+                        \Log::error('Step 5-Exception: Error during subdivision processing loop', [
+                            'exception_message' => $e->getMessage(),
+                            'exception_class' => get_class($e),
+                            'exception_file' => $e->getFile(),
+                            'exception_line' => $e->getLine(),
+                            'exception_trace' => $e->getTraceAsString()
+                        ]);
+                        
+                        throw $e;
+                    }
+                } else {
+                    \Log::warning('Step 5X: Subdivision selected but subdivision_lots array is EMPTY', [
+                        'subdivision_lots_array' => $subdivisionLotsArray
+                    ]);
                 }
+            } elseif ($validated['lot_classification'] === 'existing') {
+                $updateData['lot_type'] = 'existing_lot';
+                
+                \Log::info('Step 5: Lot classification set to EXISTING', [
+                    'lot_type' => 'existing_lot'
+                ]);
             }
 
-            // Update application
+            // UPDATE APPLICATION
             $application->update($updateData);
+
+            \Log::info('Step 6: Application updated', [
+                'application_id' => $application->id,
+                'tracking_no' => $application->tracking_no,
+                'lot_type_set' => $updateData['lot_type'] ?? 'not_set',
+                'status' => $validated['status']
+            ]);
 
             // Create status history record (audit trail)
             StatusHistory::create([
@@ -1033,12 +1247,19 @@ for ($col = 1; $col <= count($headings); $col++) {
                 'updated_by' => Auth::user()->name
             ]);
 
-            \Log::info('Application processed successfully', [
+            \Log::info('Step 7: Status history record created', [
+                'application_id' => $application->id,
+                'new_status' => $validated['status']
+            ]);
+
+            \Log::info('=== APPLICATION PROCESSED SUCCESSFULLY ===', [
                 'application_id' => $application->id,
                 'tracking_no' => $application->tracking_no,
-                'lot_classification' => $validated['lot_classification'] ?? 'not_set',
-                'new_status' => $validated['status'],
-                'land_officer' => Auth::user()->name
+                'lot_classification' => $validated['lot_classification'] ?? 'null',
+                'subdivisions_created' => $validated['lot_classification'] === 'subdivision' ? count($validated['subdivision_lots'] ?? []) : 0,
+                'application_status' => $validated['status'],
+                'land_officer' => Auth::user()->name,
+                'timestamp' => now()
             ]);
 
             return response()->json([
@@ -1049,21 +1270,25 @@ for ($col = 1; $col <= count($headings); $col++) {
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            \Log::error('Validation error processing application', [
+            \Log::error('=== VALIDATION ERROR DURING PROCESSING ===', [
                 'application_id' => $id,
-                'errors' => $e->errors()
+                'validation_errors' => $e->errors(),
+                'request_data_received' => $request->all()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => 'Validation failed: ' . implode(' | ', array_map(fn($msgs) => implode(', ', $msgs), $e->errors())),
                 'errors' => $e->errors()
             ], 422);
 
         } catch (\Exception $e) {
-            \Log::error('Error processing application', [
+            \Log::error('=== EXCEPTION DURING APPLICATION PROCESSING ===', [
                 'application_id' => $id,
-                'error' => $e->getMessage(),
+                'error_message' => $e->getMessage(),
+                'error_class' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
 

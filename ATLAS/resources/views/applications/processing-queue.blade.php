@@ -119,6 +119,7 @@
                                 data-tracking-no="{{ $application->tracking_no }}"
                                 data-applicant-name="{{ $application->applicant->full_name }}"
                                 data-survey-no="{{ $application->landRecord->survey_no }}"
+                                data-total-area="{{ $application->landRecord->total_area }}"
                                 data-status="{{ $statusText }}"
                                 style="border-bottom: 1px solid #f0f0f0; transition: background-color 0.15s ease; cursor: pointer;">
                                 <td style="padding: 12px 14px; font-size: 0.9rem; font-weight: 600; color: #1f2937; border: none;">
@@ -311,6 +312,14 @@
                     </div>
                 </div>
 
+                <!-- Original Area Display (shown only for subdivision) -->
+                <div id="originalAreaSection" style="display: none; margin-bottom: 10px; padding: 8px 12px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px;">
+                    <div class="label-minimalist" style="font-size: 0.7rem; color: #166534; font-weight: 600; text-transform: uppercase;">Mother Lot Area</div>
+                    <div style="font-size: 0.9rem; color: #1f2937; font-weight: 600;">
+                        <span id="modalOriginalArea">0</span> <span id="modalAreaUnit" style="color: #6b7280; font-weight: normal;">sq.m</span>
+                    </div>
+                </div>
+
                 <form id="processForm">
                     @csrf
                     <input type="hidden" id="applicationId" name="application_id">
@@ -328,8 +337,15 @@
                             </div>
                         </div>
                         <div id="subdivisionLotSection" class="form-group-minimalist" style="display: none;">
-                            <label class="label-minimalist" style="font-size: 0.75rem;">New Lot Number</label>
-                            <input type="text" id="subdivisionLotNumber" name="subdivision_lot_number" class="form-control" style="font-size: 0.8rem; padding: 2px 8px; height: 30px;" placeholder="Lot 1A">
+                            <label class="label-minimalist" style="font-size: 0.75rem;">Number of Lots <span style="color: #dc2626;">*</span></label>
+                            <input type="number" id="numberOfLots" name="number_of_lots" class="form-control" style="font-size: 0.8rem; padding: 2px 8px; height: 30px;" min="2" max="10" placeholder="2">
+                        </div>
+
+                        <!-- Dynamic Subdivision Rows Container -->
+                        <div id="subdivisionRowsContainer" style="display: none; margin-top: 10px; padding: 10px; background-color: #f9fafb; border-radius: 4px; border: 1px solid #e5e7eb;">
+                            <div style="font-size: 0.75rem; color: #6b7280; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Subdivided Lots</div>
+                            <div id="subdivisionRowsList"></div>
+                            <div id="subdivisionErrorMsg" class="alert alert-danger d-none" style="font-size: 0.7rem; padding: 4px 8px; margin-top: 8px; margin-bottom: 0;"></div>
                         </div>
                     </div>
 
@@ -422,12 +438,17 @@
                 let applicant = $(this).data('applicant-name');
                 let survey = $(this).data('survey-no');
                 let status = $(this).data('status');
+                let totalArea = $(this).data('total-area');
+                
+                // Store total area for validation later
+                $('#applicationId').data('total-area', totalArea);
                 
                 // Populate modal fields
                 $('#applicationId').val(appId);
                 $('#modalTrackingInfo strong').text(tracking);
                 $('#modalApplicant').text(applicant);
                 $('#modalSurveyNo').text(survey);
+                $('#modalOriginalArea').text(totalArea || 0);
                 $('#processStatus').val(status || '');
                 $('#processRemarks').val('');
                 $('#processErrorMsg').addClass('d-none');
@@ -436,8 +457,12 @@
                 // Reset lot classification and patent fields
                 $('input[name="lot_classification"]').prop('checked', false);
                 $('#subdivisionLotSection').hide();
+                $('#subdivisionRowsContainer').hide();
                 $('#decisionRemarksSection').hide();
-                $('#subdivisionLotNumber').val('');
+                $('#numberOfLots').val('');
+                $('#subdivisionRowsList').html('');
+                $('#subdivisionErrorMsg').addClass('d-none');
+                $('#originalAreaSection').hide();
                 $('#patentType').val('');
                 $('#patentDetails').val('');
                 
@@ -459,9 +484,73 @@
             
             if ($(this).val() === 'subdivision') {
                 $('#subdivisionLotSection').show();
+                $('#originalAreaSection').show();
+                $('#subdivisionRowsContainer').hide();
+                $('#subdivisionRowsList').html('');
+                $('#numberOfLots').val('');
             } else {
                 $('#subdivisionLotSection').hide();
-                $('#subdivisionLotNumber').val('');
+                $('#subdivisionRowsContainer').hide();
+                $('#originalAreaSection').hide();
+                $('#subdivisionRowsList').html('');
+                $('#numberOfLots').val('');
+            }
+        });
+        
+        // Handle Number of Lots input - Generate dynamic rows
+        $(document).on('change keyup', '#numberOfLots', function() {
+            let numLots = parseInt($(this).val()) || 0;
+            let totalArea = $('#applicationId').data('total-area') || 0;
+            
+            if (numLots < 2 || numLots > 10) {
+                $('#subdivisionRowsContainer').hide();
+                $('#subdivisionRowsList').html('');
+                return;
+            }
+            
+            // Generate lot designations (A, B, C, etc.)
+            let rowsHTML = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+            let letters = 'ABCDEFGHIJ';
+            let surveyNo = $('#modalSurveyNo').text() || 'Survey';
+            
+            for (let i = 0; i < numLots; i++) {
+                let lotDesignation = letters[i];
+                rowsHTML += `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 8px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 3px;">
+                        <div>
+                            <div class="label-minimalist" style="font-size: 0.7rem; font-weight: 600;">${surveyNo}(${lotDesignation}) Area</div>
+                            <input type="text" class="form-control" value="${surveyNo}(${lotDesignation})" style="font-size: 0.75rem; padding: 4px 8px; height: 28px; background-color: #f9fafb; color: #6b7280;" readonly>
+                        </div>
+                        <div>
+                            <div class="label-minimalist" style="font-size: 0.7rem;">Area (sq.m) <span style="color: #dc2626;">*</span></div>
+                            <input type="number" class="subdivision-area-input" data-lot-index="${i}" step="0.01" min="0" max="${totalArea}" style="font-size: 0.8rem; padding: 4px 8px; height: 28px;" placeholder="0.00">
+                        </div>
+                    </div>
+                `;
+            }
+            
+            rowsHTML += '</div>';
+            $('#subdivisionRowsList').html(rowsHTML);
+            $('#subdivisionRowsContainer').show();
+            $('#subdivisionErrorMsg').addClass('d-none');
+        });
+        
+        // Handle area input changes - Validate sum
+        $(document).on('change keyup', '.subdivision-area-input', function() {
+            let totalArea = $('#applicationId').data('total-area') || 0;
+            let sumAreas = 0;
+            
+            $('.subdivision-area-input').each(function() {
+                let area = parseFloat($(this).val()) || 0;
+                sumAreas += area;
+            });
+            
+            if (sumAreas > totalArea) {
+                $('#subdivisionErrorMsg').removeClass('d-none').text(
+                    `Error: Subdivided areas exceed the Mother Lot total.`
+                );
+            } else {
+                $('#subdivisionErrorMsg').addClass('d-none');
             }
         });
         
@@ -481,6 +570,12 @@
         // Handle Save Assessment button click
         $(document).on('click', '#saveProcessBtn', function() {
             let appId = $('#applicationId').val();
+            let lotClassification = $('input[name="lot_classification"]:checked').val();
+            
+            console.log('=== SAVE ASSESSMENT CLICKED ===', {
+                appId: appId,
+                lotClassification: lotClassification
+            });
             
             // Validate required fields
             if (!appId) {
@@ -498,11 +593,76 @@
                 return;
             }
             
+            // Special validation for subdivision
+            if (lotClassification === 'subdivision') {
+                console.log('Subdivision mode detected - validating subdivision lots...');
+                
+                let numLots = parseInt($('#numberOfLots').val()) || 0;
+                
+                if (numLots < 2 || numLots > 10) {
+                    showProcessError('Please enter a valid number of lots (2-10)');
+                    return;
+                }
+                
+                // Validate all areas are filled
+                let allAreasFilled = true;
+                let subdivisionLots = [];
+                let totalArea = $('#applicationId').data('total-area') || 0;
+                let sumAreas = 0;
+                
+                console.log('Iterating through subdivision-area-input elements...');
+                console.log('Total area allowed: ' + totalArea);
+                
+                $('.subdivision-area-input').each(function(index) {
+                    let area = parseFloat($(this).val());
+                    let letter = 'ABCDEFGHIJ'[index];
+                    
+                    console.log('  Lot ' + index + ' (' + letter + '): area=' + area + ', element value="' + $(this).val() + '"');
+                    
+                    if (!area || area <= 0) {
+                        console.warn('  ⚠️ Lot ' + index + ' has invalid area: ' + area);
+                        allAreasFilled = false;
+                    }
+                    sumAreas += (area || 0);
+                    
+                    subdivisionLots.push({
+                        designation: letter,
+                        area: area || 0
+                    });
+                });
+                
+                console.log('Subdivision lots array built:', subdivisionLots);
+                console.log('Total areas sum: ' + sumAreas + ', allowed: ' + totalArea);
+                
+                // DETAILED DEBUG OF ARRAY
+                console.log('=== SUBDIVISION LOTS ARRAY DEBUG ===');
+                console.log('Array length: ' + subdivisionLots.length);
+                for (let i = 0; i < subdivisionLots.length; i++) {
+                    console.log('  Index ' + i + ': ' + JSON.stringify(subdivisionLots[i]));
+                }
+                console.log('====================================');
+                
+                if (!allAreasFilled) {
+                    showProcessError('Please fill in all subdivided lot areas');
+                    return;
+                }
+                
+                if (sumAreas > totalArea) {
+                    showProcessError('Error: Subdivided areas exceed the Mother Lot total.');
+                    return;
+                }
+                
+                // Store subdivision lots for submission
+                $('#processForm').data('subdivision-lots', subdivisionLots);
+                console.log('Subdivision lots stored in form data:', $('#processForm').data('subdivision-lots'));
+            }
+            
             // Prepare JSON data
             let submitData = {
                 application_id: $('#applicationId').val(),
-                lot_classification: $('input[name="lot_classification"]:checked').val() || '',
-                subdivision_lot_number: $('#subdivisionLotNumber').val() || '',
+                lot_classification: lotClassification || '',
+                number_of_lots: lotClassification === 'subdivision' ? parseInt($('#numberOfLots').val()) : 0,
+                subdivision_lots: lotClassification === 'subdivision' ? $('#processForm').data('subdivision-lots') : [],
                 status: $('#processStatus').val(),
                 patent_type: $('#patentType').val() || '',
                 patent_details: $('#patentDetails').val() || '',
@@ -510,7 +670,15 @@
                 _token: $('meta[name="csrf-token"]').attr('content')
             };
             
-            console.log('Submitting data:', submitData);
+            console.log('=== SUBMIT DATA PREPARED ===', submitData);
+            console.log('JSON stringified:', JSON.stringify(submitData));
+            if (lotClassification === 'subdivision') {
+                console.log('Subdivision lots count:', submitData.subdivision_lots.length);
+                console.log('Subdivision lots details:');
+                for (let i = 0; i < submitData.subdivision_lots.length; i++) {
+                    console.log('  [' + i + '] ' + JSON.stringify(submitData.subdivision_lots[i]));
+                }
+            }
             
             // Show loading state
             $('#saveProcessBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Processing...');
@@ -525,7 +693,7 @@
                 contentType: 'application/json',
                 dataType: 'json',
                 success: function(response) {
-                    console.log('Success response:', response);
+                    console.log('=== SUCCESS RESPONSE ===', response);
                     showProcessSuccess(response.message || 'Assessment saved successfully!');
                     
                     // Reload applications list after 1.5 seconds
@@ -534,25 +702,37 @@
                     }, 1500);
                 },
                 error: function(xhr, status, error) {
-                    console.error('Ajax error:', status, error);
-                    console.error('Response:', xhr.responseText);
+                    console.error('=== AJAX ERROR ===', {
+                        status: status,
+                        error: error,
+                        xhr_status: xhr.status,
+                        response_text: xhr.responseText
+                    });
                     
                     let errorMsg = 'An error occurred while saving the assessment';
                     
                     try {
                         let response = xhr.responseJSON || JSON.parse(xhr.responseText);
                         
+                        console.error('Parsed response:', response);
+                        
                         if (response.message) {
                             errorMsg = response.message;
-                        } else if (response.errors) {
+                        }
+                        
+                        if (response.errors) {
+                            console.error('Validation errors received:', response.errors);
                             // Handle validation errors
                             let errorList = [];
                             for (let field in response.errors) {
-                                errorList.push(response.errors[field].join(', '));
+                                let fieldErrors = response.errors[field];
+                                console.error('  ' + field + ': ' + JSON.stringify(fieldErrors));
+                                errorList.push(field + ': ' + fieldErrors.join(', '));
                             }
-                            errorMsg = errorList.join(' | ');
+                            errorMsg = errorList.join(' || ');
                         }
                     } catch (e) {
+                        console.error('Error parsing response:', e);
                         errorMsg = 'Server error: ' + (xhr.status || 'Unknown') + ' - ' + error;
                     }
                     

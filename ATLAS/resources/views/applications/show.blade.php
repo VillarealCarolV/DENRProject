@@ -538,26 +538,59 @@
                     </div>
                 </div>
                 <div class="section-subheader">
-                    <i class="fas fa-chevron-down"></i> Details
+                    <i class="fas fa-chevron-down"></i> Mother Lot Information
                 </div>
                 <div class="metadata-grid grid-4col">
                     <div class="metadata-item">
-                        <span class="metadata-label">New Lot Number</span>
-                        <div class="metadata-value">{{ $application->new_lot_number ?? 'N/A' }}</div>
+                        <span class="metadata-label">Mother Lot Survey No.</span>
+                        <div class="metadata-value">{{ $application->landRecord->survey_no }}</div>
                     </div>
                     <div class="metadata-item">
-                        <span class="metadata-label">Subdivided Area</span>
-                        <div class="metadata-value">{{ number_format($application->subdivided_area ?? 0, 2) }} sqm</div>
-                    </div>
-                    <div class="metadata-item">
-                        <span class="metadata-label">Mother Lot Total</span>
+                        <span class="metadata-label">Mother Lot Total Area</span>
                         <div class="metadata-value">{{ number_format($application->landRecord->total_area, 2) }} sqm</div>
                     </div>
                     <div class="metadata-item">
+                        <span class="metadata-label">Number of Subdivided Lots</span>
+                        <div class="metadata-value">{{ $application->landRecord->children->count() }}</div>
+                    </div>
+                    <div class="metadata-item">
                         <span class="metadata-label">Remaining Area</span>
-                        <div class="metadata-value" style="color: #059669; font-weight: 600;">{{ number_format($application->remaining_area ?? 0, 2) }} sqm</div>
+                        <div class="metadata-value" style="color: #059669; font-weight: 600;">
+                            {{ number_format($application->landRecord->total_area - $application->landRecord->children->sum('total_area'), 2) }} sqm
+                        </div>
                     </div>
                 </div>
+
+                @if($application->landRecord->children->count() > 0)
+                <div class="section-subheader" style="margin-top: 20px;">
+                    <i class="fas fa-chevron-down"></i> Subdivided Lots
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    @foreach($application->landRecord->children as $index => $childLot)
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">
+                            <div>
+                                <span style="font-size: 0.7rem; color: #6b7280; font-weight: 600; text-transform: uppercase;">New Lot Number</span>
+                                <div style="font-size: 0.95rem; color: #1f2937; font-weight: 600; margin-top: 4px;">{{ $childLot->survey_no }}</div>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.7rem; color: #6b7280; font-weight: 600; text-transform: uppercase;">Subdivided Area</span>
+                                <div style="font-size: 0.95rem; color: #1f2937; font-weight: 600; margin-top: 4px;">{{ number_format($childLot->total_area, 2) }} sqm</div>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.7rem; color: #6b7280; font-weight: 600; text-transform: uppercase;">Lot Designation</span>
+                                <div style="font-size: 0.95rem; color: #3b82f6; font-weight: 600; margin-top: 4px;">
+                                    @php
+                                        $letters = 'ABCDEFGHIJ';
+                                        echo $letters[$index] ?? 'Unknown';
+                                    @endphp
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                @endif
             </div>
             @endif
 
