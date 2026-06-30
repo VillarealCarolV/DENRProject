@@ -19,8 +19,8 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 # Get latest Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Install Node.js for Vite
-RUN curl -sL https://nodesource.com | bash - && apt-get install -y nodejs
+# Install Node.js for Vite (Node 18)
+RUN curl -fsSL https://nodesource.com | bash - && apt-get install -y nodejs
 
 # Set working directory
 WORKDIR /var/www
